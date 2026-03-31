@@ -1,58 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db/connect";
-import Tuition from "@/lib/db/models/Tuition";
+import { ZodError } from "zod";
+import { logger } from "@/lib/logger";
+import { tuitionCreateSchema } from "@/lib/validations/tuition";
+import * as tuitionService from "@/services/tuition.service";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
-  const status = searchParams.get("status");
-  const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "20");
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("userId") || undefined;
+    const status = searchParams.get("status") || undefined;
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
 
-  const query: Record<string, unknown> = {};
-  if (userId) query.userId = userId;
-  if (status) query.status = status;
+    const [listResult, summary] = await Promise.all([
+      tuitionService.listTuition({ userId, status, page, limit }),
+      tuitionService.getSummary(),
+    ]);
 
-  const now = new Date();
-  await Tuition.updateMany(
-    { status: "pending", dueDate: { $lt: now } },
-    { $set: { status: "overdue" } }
-  );
-
-  const [items, total] = await Promise.all([
-    Tuition.find(query)
-      .populate("userId", "name phone")
-      .sort({ dueDate: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean(),
-    Tuition.countDocuments(query),
-  ]);
-
-  const summary = await Tuition.aggregate([
-    { $group: { _id: "$status", count: { $sum: 1 }, total: { $sum: "$amount" } } },
-  ]);
-
-  return NextResponse.json({ items, total, summary });
+    return NextResponse.json({ ...listResult, summary });
+  } catch (error) {
+    logger.error("Failed to list tuition", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const body = await req.json();
-  const { userId, amount, description, dueDate, notes } = body;
-
-  if (!userId || !amount || !dueDate) {
-    return NextResponse.json({ error: "회원, 금액, 납부기한은 필수입니다." }, { status: 400 });
+    const body = tuitionCreateSchema.parse(await req.json());
+    const result = await tuitionService.createTuition(body);
+    return NextResponse.json(result, { status: 201 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.issues[0].message }, { status: 400 });
+    }
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to create tuition", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
   }
-
-  const item = await Tuition.create({ userId, amount, description, dueDate: new Date(dueDate), notes });
-  return NextResponse.json(item, { status: 201 });
 }

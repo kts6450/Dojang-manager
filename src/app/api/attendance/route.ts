@@ -1,63 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db/connect";
-import Attendance from "@/lib/db/models/Attendance";
+import { ZodError } from "zod";
+import { logger } from "@/lib/logger";
+import { attendanceCreateSchema } from "@/lib/validations/attendance";
+import * as attendanceService from "@/services/attendance.service";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
-  const dateFrom = searchParams.get("dateFrom");
-  const dateTo = searchParams.get("dateTo");
-  const status = searchParams.get("status");
-  const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "50");
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("userId") || undefined;
+    const dateFrom = searchParams.get("dateFrom") || undefined;
+    const dateTo = searchParams.get("dateTo") || undefined;
+    const status = searchParams.get("status") || undefined;
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "50");
 
-  const query: Record<string, unknown> = {};
-  if (userId) query.userId = userId;
-  if (status) query.status = status;
-  if (dateFrom || dateTo) {
-    query.date = {};
-    if (dateFrom) (query.date as Record<string, Date>).$gte = new Date(dateFrom);
-    if (dateTo) {
-      const end = new Date(dateTo);
-      end.setHours(23, 59, 59, 999);
-      (query.date as Record<string, Date>).$lte = end;
-    }
+    const result = await attendanceService.listAttendance({ userId, dateFrom, dateTo, status, page, limit });
+    return NextResponse.json(result);
+  } catch (error) {
+    logger.error("Failed to list attendance", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
   }
-
-  const [records, total] = await Promise.all([
-    Attendance.find(query)
-      .populate("userId", "name belt")
-      .sort({ date: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean(),
-    Attendance.countDocuments(query),
-  ]);
-
-  return NextResponse.json({ records, total });
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const body = await req.json();
-  const { userId, classType, date, status, method, notes } = body;
-
-  if (!userId || !classType || !date) {
-    return NextResponse.json({ error: "회원, 수업 종류, 날짜는 필수입니다." }, { status: 400 });
+    const body = attendanceCreateSchema.parse(await req.json());
+    const result = await attendanceService.createAttendance(body);
+    return NextResponse.json(result, { status: 201 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.issues[0].message }, { status: 400 });
+    }
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to create attendance", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
   }
-
-  const record = await Attendance.create({
-    userId, classType, date: new Date(date),
-    status: status || "present", method: method || "manual", notes,
-  });
-
-  return NextResponse.json(record, { status: 201 });
 }

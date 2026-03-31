@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db/connect";
-import BeltRank from "@/lib/db/models/BeltRank";
-import User from "@/lib/db/models/User";
+import { logger } from "@/lib/logger";
+import * as beltRankService from "@/services/belt-rank.service";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const body = await req.json();
-
-  const record = await BeltRank.findByIdAndUpdate(params.id, body, { new: true });
-  if (!record) return NextResponse.json({ error: "기록을 찾을 수 없습니다." }, { status: 404 });
-
-  if (body.examResult === "pass") {
-    await User.findByIdAndUpdate(record.userId, {
-      belt: record.belt, beltLevel: record.beltLevel,
-    });
+    const { id } = await params;
+    const body = await req.json();
+    const record = await beltRankService.updateBeltRank(id, body);
+    return NextResponse.json(record);
+  } catch (error) {
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to update belt rank", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
   }
-
-  return NextResponse.json(record);
 }

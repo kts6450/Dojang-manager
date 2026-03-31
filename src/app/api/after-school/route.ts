@@ -1,43 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db/connect";
-import AfterSchool from "@/lib/db/models/AfterSchool";
+import { ZodError } from "zod";
+import { logger } from "@/lib/logger";
+import { afterSchoolCreateSchema } from "@/lib/validations/after-school";
+import * as afterSchoolService from "@/services/after-school.service";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
-
-  const query: Record<string, unknown> = {};
-  if (status) query.status = status;
-
-  const records = await AfterSchool.find(query)
-    .populate("studentId", "name phone birthDate")
-    .sort({ createdAt: -1 })
-    .lean();
-
-  return NextResponse.json(records);
+    const status = req.nextUrl.searchParams.get("status") || undefined;
+    const records = await afterSchoolService.listAfterSchool(status);
+    return NextResponse.json(records);
+  } catch (error) {
+    logger.error("Failed to list after-school records", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const body = await req.json();
-  const { studentId, programName, schedule, startDate, endDate, tuitionAmount, notes } = body;
-
-  if (!studentId || !programName || !startDate) {
-    return NextResponse.json({ error: "학생, 프로그램명, 시작일은 필수입니다." }, { status: 400 });
+    const body = afterSchoolCreateSchema.parse(await req.json());
+    const record = await afterSchoolService.createAfterSchool(body);
+    return NextResponse.json(record, { status: 201 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.issues[0].message }, { status: 400 });
+    }
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to create after-school record", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
   }
-
-  const record = await AfterSchool.create({
-    studentId, programName, schedule, startDate: new Date(startDate),
-    endDate: endDate ? new Date(endDate) : undefined, tuitionAmount, notes,
-  });
-
-  return NextResponse.json(record, { status: 201 });
 }

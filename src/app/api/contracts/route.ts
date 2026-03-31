@@ -1,56 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db/connect";
-import Contract from "@/lib/db/models/Contract";
+import { ZodError } from "zod";
+import { logger } from "@/lib/logger";
+import { contractCreateSchema } from "@/lib/validations/contract";
+import * as contractService from "@/services/contract.service";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
-  const userId = searchParams.get("userId");
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get("status") || undefined;
+    const userId = searchParams.get("userId") || undefined;
 
-  const query: Record<string, unknown> = {};
-  if (status) query.status = status;
-  if (userId) query.userId = userId;
-
-  const now = new Date();
-  await Contract.updateMany(
-    { status: "signed", endDate: { $lt: now } },
-    { $set: { status: "expired" } }
-  );
-
-  const contracts = await Contract.find(query)
-    .populate("userId", "name phone email")
-    .sort({ createdAt: -1 })
-    .lean();
-
-  const expiringSoon = await Contract.countDocuments({
-    status: "signed",
-    endDate: { $gte: now, $lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) },
-  });
-
-  return NextResponse.json({ contracts, expiringSoon });
+    const result = await contractService.listContracts({ status, userId });
+    return NextResponse.json(result);
+  } catch (error) {
+    logger.error("Failed to list contracts", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const body = await req.json();
-  const { userId, title, terms, startDate, endDate, amount, notes } = body;
-
-  if (!userId || !title || !startDate || !endDate) {
-    return NextResponse.json({ error: "필수 항목을 입력해주세요." }, { status: 400 });
+    const body = contractCreateSchema.parse(await req.json());
+    const result = await contractService.createContract(body);
+    return NextResponse.json(result, { status: 201 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.issues[0].message }, { status: 400 });
+    }
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to create contract", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
   }
-
-  const contract = await Contract.create({
-    userId, title, terms: terms || "", startDate: new Date(startDate),
-    endDate: new Date(endDate), amount: amount || 0, notes,
-  });
-
-  return NextResponse.json(contract, { status: 201 });
 }

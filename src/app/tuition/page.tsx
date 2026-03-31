@@ -6,13 +6,14 @@ import { Header } from "@/components/shared/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, CreditCard, AlertCircle, CheckCircle, Clock, Mail, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { formatCurrency, formatDate, runAfterOverlayTransition } from "@/lib/utils";
 
 function OverdueEmailButton() {
   const [loading, setLoading] = useState(false);
@@ -27,9 +28,9 @@ function OverdueEmailButton() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(`연체 알림 발송: ${data.sent}/${data.total}명`);
+        toast.success(`Overdue notices sent: ${data.sent}/${data.total} members`);
       } else {
-        toast.error(data.error ?? "발송 실패");
+        toast.error(data.error ?? "Failed to send");
       }
     } finally {
       setLoading(false);
@@ -43,8 +44,8 @@ function OverdueEmailButton() {
       onClick={handleSend}
       disabled={loading}
     >
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-      연체 알림 발송
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} /> : <Mail className="w-4 h-4" strokeWidth={1.5} />}
+      Send Overdue Notices
     </Button>
   );
 }
@@ -63,11 +64,11 @@ interface TuitionItem {
 
 interface Member { _id: string; name: string; }
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending: { label: "미납", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-100" },
-  paid: { label: "납부완료", color: "bg-green-100 text-green-700 hover:bg-green-100" },
-  overdue: { label: "연체", color: "bg-red-100 text-red-700 hover:bg-red-100" },
-  cancelled: { label: "취소", color: "bg-slate-100 text-slate-600 hover:bg-slate-100" },
+const STATUS_MAP: Record<string, { label: string; dot: string; text: string }> = {
+  pending: { label: "Pending", dot: "bg-yellow-500", text: "text-yellow-700 bg-yellow-50 border border-yellow-200" },
+  paid: { label: "Paid", dot: "bg-emerald-500", text: "text-emerald-700 bg-emerald-50 border border-emerald-200" },
+  overdue: { label: "Overdue", dot: "bg-red-500", text: "text-red-700 bg-red-50 border border-red-200" },
+  cancelled: { label: "Cancelled", dot: "bg-slate-400", text: "text-slate-600 bg-slate-50 border border-slate-200" },
 };
 
 export default function TuitionPage() {
@@ -77,7 +78,7 @@ export default function TuitionPage() {
   const [summary, setSummary] = useState<{ paid: number; pending: number; overdue: number }>({ paid: 0, pending: 0, overdue: 0 });
   const [showDialog, setShowDialog] = useState(false);
   const [form, setForm] = useState({
-    userId: "", amount: "", description: "월 수강료",
+    userId: "", amount: "", description: "Monthly Tuition",
     dueDate: new Date().toISOString().split("T")[0], notes: "",
   });
 
@@ -87,7 +88,6 @@ export default function TuitionPage() {
     const res = await fetch(`/api/tuition?${params}`);
     const data = await res.json();
     setItems(data.items ?? []);
-    // total is displayed via items.length
 
     const s = { paid: 0, pending: 0, overdue: 0 };
     (data.summary ?? []).forEach((x: { _id: string; count: number }) => {
@@ -103,151 +103,181 @@ export default function TuitionPage() {
 
   async function handleSubmit() {
     if (!form.userId || !form.amount || !form.dueDate) {
-      toast.error("필수 항목을 입력해주세요."); return;
+      toast.error("Please fill in all required fields."); return;
     }
     const res = await fetch("/api/tuition", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, amount: Number(form.amount) }),
     });
     if (res.ok) {
-      toast.success("수강료가 등록됐습니다.");
+      toast.success("Tuition record created successfully.");
       setShowDialog(false);
-      setForm({ userId: "", amount: "", description: "월 수강료", dueDate: new Date().toISOString().split("T")[0], notes: "" });
-      fetchItems();
+      setForm({ userId: "", amount: "", description: "Monthly Tuition", dueDate: new Date().toISOString().split("T")[0], notes: "" });
+      runAfterOverlayTransition(() => fetchItems());
     } else {
       const err = await res.json();
-      toast.error(err.error || "오류 발생");
+      toast.error(err.error || "An error occurred");
     }
   }
 
   async function markPaid(id: string) {
-    await fetch(`/api/tuition/${id}`, {
+    const res = await fetch(`/api/tuition/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "paid", paymentMethod: "현금", paidAt: new Date() }),
+      body: JSON.stringify({ status: "paid", paymentMethod: "cash", paidAt: new Date() }),
     });
-    toast.success("납부 처리됐습니다.");
-    fetchItems();
+    if (res.ok) {
+      toast.success("Payment recorded successfully.");
+    } else {
+      const err = await res.json().catch(() => null);
+      toast.error(err?.error || "Failed to record payment.");
+    }
+    runAfterOverlayTransition(() => fetchItems());
   }
 
   const totalAmount = items.reduce((sum, i) => i.status === "paid" ? sum + i.amount : sum, 0);
 
   return (
     <DashboardLayout>
-      <Header title="수강료 관리" />
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <Header title="Tuition" />
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <section className="rounded-xl border bg-white p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                Revenue operations
+              </span>
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Keep tuition collection visible and actionable.</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Follow payment risk, send overdue reminders, and update collection status from one view.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <OverdueEmailButton />
+              <Button onClick={() => setShowDialog(true)} className="h-9">
+                <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Add Tuition
+              </Button>
+            </div>
+          </div>
+        </section>
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "납부완료", value: summary.paid, icon: CheckCircle, color: "text-green-600", bg: "bg-green-50" },
-            { label: "미납", value: summary.pending, icon: Clock, color: "text-yellow-600", bg: "bg-yellow-50" },
-            { label: "연체", value: summary.overdue, icon: AlertCircle, color: "text-red-600", bg: "bg-red-50" },
-            { label: "이번달 수입", value: `₩${totalAmount.toLocaleString()}`, icon: CreditCard, color: "text-blue-600", bg: "bg-blue-50" },
-          ].map(({ label, value, icon: Icon, color, bg }) => (
-            <Card key={label} className="border-0 shadow-sm">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`${bg} p-2.5 rounded-lg`}><Icon className={`w-5 h-5 ${color}`} /></div>
-                <div>
-                  <p className="text-xs text-slate-500">{label}</p>
-                  <p className="text-xl font-bold text-slate-800">{value}</p>
+            { label: "Paid", value: summary.paid, icon: CheckCircle, color: "text-emerald-600" },
+            { label: "Pending", value: summary.pending, icon: Clock, color: "text-yellow-600" },
+            { label: "Overdue", value: summary.overdue, icon: AlertCircle, color: "text-red-600" },
+            { label: "This Month Revenue", value: formatCurrency(totalAmount), icon: CreditCard, color: "text-slate-600" },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <Card key={label} className="rounded-xl border bg-white p-4 shadow-none">
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{label}</p>
+              <div className="mt-2 flex items-start justify-between gap-2">
+                <span className="text-3xl font-semibold tracking-tight text-slate-950">{value}</span>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <Icon className={`h-4 w-4 ${color}`} strokeWidth={1.5} />
                 </div>
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>
 
-        <div className="flex gap-3 items-center justify-between flex-wrap">
-          <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : (v ?? ""))}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="전체 상태" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체</SelectItem>
-              <SelectItem value="pending">미납</SelectItem>
-              <SelectItem value="paid">납부완료</SelectItem>
-              <SelectItem value="overdue">연체</SelectItem>
-              <SelectItem value="cancelled">취소</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex gap-2">
-            <OverdueEmailButton />
-            <Button onClick={() => setShowDialog(true)} className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" /> 수강료 등록
-            </Button>
+        <section className="rounded-xl border bg-white p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-[13px] font-semibold text-slate-900">Payment records</h3>
+              <p className="text-[11px] text-muted-foreground">Filter and review tuition by collection status</p>
+            </div>
+            <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : (v ?? ""))}>
+              <SelectTrigger className="h-9 w-44 text-[13px]">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
+        </section>
 
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50">
-                  <TableHead>회원</TableHead>
-                  <TableHead>연락처</TableHead>
-                  <TableHead>설명</TableHead>
-                  <TableHead>금액</TableHead>
-                  <TableHead>납부기한</TableHead>
-                  <TableHead>납부일</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead>처리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-10 text-slate-400">데이터가 없습니다.</TableCell></TableRow>
-                ) : (
-                  items.map((item) => (
-                    <TableRow key={item._id} className="hover:bg-slate-50">
-                      <TableCell className="font-medium">{item.userId?.name ?? "-"}</TableCell>
-                      <TableCell className="text-sm text-slate-500">{item.userId?.phone ?? "-"}</TableCell>
-                      <TableCell className="text-sm">{item.description}</TableCell>
-                      <TableCell className="font-medium">₩{item.amount.toLocaleString()}</TableCell>
-                      <TableCell className="text-sm text-slate-500">{new Date(item.dueDate).toLocaleDateString("ko-KR")}</TableCell>
-                      <TableCell className="text-sm text-slate-500">{item.paidAt ? new Date(item.paidAt).toLocaleDateString("ko-KR") : "-"}</TableCell>
-                      <TableCell>
-                        <Badge className={STATUS_MAP[item.status]?.color ?? ""}>{STATUS_MAP[item.status]?.label ?? item.status}</Badge>
+        <div className="overflow-hidden rounded-xl border bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50/80">
+                <TableHead className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">Member</TableHead>
+                <TableHead className="text-[13px] font-medium">Phone</TableHead>
+                <TableHead className="text-[13px] font-medium">Description</TableHead>
+                <TableHead className="text-[13px] font-medium">Amount</TableHead>
+                <TableHead className="text-[13px] font-medium">Due Date</TableHead>
+                <TableHead className="text-[13px] font-medium">Paid Date</TableHead>
+                <TableHead className="text-[13px] font-medium">Status</TableHead>
+                <TableHead className="text-[13px] font-medium">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.length === 0 ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground text-[13px]">No data found.</TableCell></TableRow>
+              ) : (
+                items.map((item) => {
+                  const st = STATUS_MAP[item.status];
+                  return (
+                    <TableRow key={item._id}>
+                      <TableCell className="py-2 text-[13px] font-medium">{item.userId?.name ?? "-"}</TableCell>
+                      <TableCell className="py-2 text-[13px] text-muted-foreground">{item.userId?.phone ?? "-"}</TableCell>
+                      <TableCell className="py-2 text-[13px]">{item.description}</TableCell>
+                      <TableCell className="py-2 text-[13px] font-medium">{formatCurrency(item.amount)}</TableCell>
+                      <TableCell className="py-2 text-[13px] text-muted-foreground">{formatDate(item.dueDate)}</TableCell>
+                      <TableCell className="py-2 text-[13px] text-muted-foreground">{item.paidAt ? formatDate(item.paidAt) : "-"}</TableCell>
+                      <TableCell className="py-2">
+                        <Badge variant="outline" className={`rounded-md text-[11px] font-normal ${st?.text ?? ""}`}>
+                          {st?.label ?? item.status}
+                        </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         {item.status !== "paid" && item.status !== "cancelled" && (
-                          <Button size="sm" variant="outline" onClick={() => markPaid(item._id)} className="h-7 text-xs text-green-600 border-green-200 hover:bg-green-50">
-                            납부처리
+                          <Button size="sm" variant="outline" onClick={() => markPaid(item._id)} className="h-7 text-[11px] text-emerald-600 border-emerald-200 hover:bg-emerald-50">
+                            Mark Paid
                           </Button>
                         )}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>수강료 등록</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-[15px] font-semibold">Add Tuition</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label>회원 *</Label>
+            <div className="space-y-1">
+              <Label className="text-[13px]">Member *</Label>
               <Select value={form.userId} onValueChange={(v) => v !== null && setForm({ ...form, userId: v })}>
-                <SelectTrigger><SelectValue placeholder="회원 선택" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-[13px]"><SelectValue placeholder="Select member" /></SelectTrigger>
                 <SelectContent>{members.map((m) => <SelectItem key={m._id} value={m._id}>{m.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>설명</Label>
-              <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <div className="space-y-1">
+              <Label className="text-[13px]">Description</Label>
+              <Input className="h-8 text-[13px]" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </div>
-            <div className="space-y-1.5">
-              <Label>금액 (원) *</Label>
-              <Input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="120000" />
+            <div className="space-y-1">
+              <Label className="text-[13px]">Amount ($) *</Label>
+              <Input className="h-8 text-[13px]" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="120" />
             </div>
-            <div className="space-y-1.5">
-              <Label>납부기한 *</Label>
-              <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+            <div className="space-y-1">
+              <Label className="text-[13px]">Due Date *</Label>
+              <Input className="h-8 text-[13px]" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>취소</Button>
-            <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700">등록</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowDialog(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleSubmit}>Register</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

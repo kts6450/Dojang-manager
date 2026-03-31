@@ -1,42 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db/connect";
-import User from "@/lib/db/models/User";
-import bcrypt from "bcryptjs";
+import { ZodError } from "zod";
+import { logger } from "@/lib/logger";
+import { memberUpdateSchema } from "@/lib/validations/member";
+import * as memberService from "@/services/member.service";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const user = await User.findById(params.id).select("-password").lean();
-  if (!user) return NextResponse.json({ error: "회원을 찾을 수 없습니다." }, { status: 404 });
-  return NextResponse.json(user);
+    const { id } = await params;
+    const user = await memberService.getMember(id);
+    return NextResponse.json(user);
+  } catch (error) {
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to get member", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const body = await req.json();
-
-  if (body.password) {
-    body.password = await bcrypt.hash(body.password, 12);
-  } else {
-    delete body.password;
+    const { id } = await params;
+    const body = memberUpdateSchema.parse(await req.json());
+    const user = await memberService.updateMember(id, body);
+    return NextResponse.json(user);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.issues[0].message }, { status: 400 });
+    }
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to update member", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
   }
-
-  const user = await User.findByIdAndUpdate(params.id, body, { new: true }).select("-password").lean();
-  if (!user) return NextResponse.json({ error: "회원을 찾을 수 없습니다." }, { status: 404 });
-  return NextResponse.json(user);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  await User.findByIdAndDelete(params.id);
-  return NextResponse.json({ message: "삭제되었습니다." });
+    const { id } = await params;
+    const result = await memberService.deleteMember(id);
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to delete member", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
+  }
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,10 +10,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const callbackUrl = useMemo(() => {
+    const rawCallbackUrl = searchParams.get("callbackUrl");
+
+    if (!rawCallbackUrl) {
+      return "/";
+    }
+
+    try {
+      const normalizedUrl = new URL(rawCallbackUrl, window.location.origin);
+
+      if (normalizedUrl.origin !== window.location.origin) {
+        return "/";
+      }
+
+      return `${normalizedUrl.pathname}${normalizedUrl.search}${normalizedUrl.hash}` || "/";
+    } catch {
+      return rawCallbackUrl.startsWith("/") ? rawCallbackUrl : "/";
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,12 +45,13 @@ export default function LoginPage() {
       email,
       password,
       redirect: false,
+      callbackUrl,
     });
 
     if (result?.error) {
-      setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+      setError("Invalid email or password.");
     } else {
-      router.push("/");
+      router.push(callbackUrl);
       router.refresh();
     }
     setLoading(false);
@@ -42,18 +64,18 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
             <span className="text-3xl">🥋</span>
           </div>
-          <h1 className="text-3xl font-bold text-white">도장 매니저</h1>
-          <p className="text-blue-300 mt-1 text-sm">무도관 통합 관리 시스템</p>
+          <h1 className="text-3xl font-bold text-white">Dojang Manager</h1>
+          <p className="text-blue-300 mt-1 text-sm">Martial Arts Studio Management</p>
         </div>
 
         <Card className="border-0 shadow-2xl bg-white/10 backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-white text-xl text-center">로그인</CardTitle>
+            <CardTitle className="text-white text-xl text-center">Sign In</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-blue-100">이메일</Label>
+                <Label htmlFor="email" className="text-blue-100">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -65,7 +87,7 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-blue-100">비밀번호</Label>
+                <Label htmlFor="password" className="text-blue-100">Password</Label>
                 <Input
                   id="password"
                   type="password"
@@ -86,7 +108,7 @@ export default function LoginPage() {
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5"
                 disabled={loading}
               >
-                {loading ? "로그인 중..." : "로그인"}
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </CardContent>

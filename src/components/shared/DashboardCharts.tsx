@@ -2,7 +2,7 @@
 
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  Tooltip, ResponsiveContainer,
 } from "recharts";
 
 interface ChartDataItem {
@@ -24,126 +24,125 @@ function CustomTooltip({ active, payload, label, formatter }: {
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-slate-100 p-3 text-sm">
-      <p className="font-semibold text-slate-600 mb-2">{label}</p>
+    <div className="bg-white rounded-lg border border-border p-2.5 text-xs shadow-sm">
+      <p className="font-medium text-muted-foreground mb-1.5">{label}</p>
       {payload.map((p) => (
-        <div key={p.name} className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-slate-500">{p.name}:</span>
-          <span className="font-bold text-slate-700">{formatter ? formatter(p.value) : p.value}</span>
+        <div key={p.name} className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.color }} />
+          <span className="text-muted-foreground">{p.name}</span>
+          <span className="font-semibold text-foreground ml-auto">{formatter ? formatter(p.value) : p.value}</span>
         </div>
       ))}
     </div>
   );
 }
 
+function getChange(data: ChartDataItem[], key: keyof ChartDataItem): number | null {
+  if (data.length < 2) return null;
+  const curr = data[data.length - 1][key] as number;
+  const prev = data[data.length - 2][key] as number;
+  if (prev === 0) return curr > 0 ? 100 : 0;
+  return Math.round(((curr - prev) / prev) * 100);
+}
+
+function ChangeIndicator({ value }: { value: number | null }) {
+  if (value === null) return null;
+  const isUp = value >= 0;
+  return (
+    <span className={`text-[11px] font-medium ${isUp ? "text-emerald-600" : "text-red-500"}`}>
+      {isUp ? "+" : ""}{value}% vs last month
+    </span>
+  );
+}
+
 export function DashboardCharts({ data }: DashboardChartsProps) {
   const hasData = data.some((d) => d.attendance > 0 || d.revenue > 0 || d.newMembers > 0);
+  const attendanceChange = getChange(data, "attendance");
+  const revenueChange = getChange(data, "revenue");
+  const membersChange = getChange(data, "newMembers");
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 
-      {/* 월별 출석 현황 */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-700">월별 출석</h3>
-            <p className="text-xs text-slate-400 mt-0.5">최근 6개월</p>
-          </div>
-          <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center">
-            <span className="text-base">📅</span>
-          </div>
+      <div className="rounded-xl border bg-white p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-[13px] font-medium text-foreground">Attendance</h3>
+          <ChangeIndicator value={attendanceChange} />
         </div>
+        <p className="text-[11px] text-muted-foreground mb-3">Last 6 months</p>
         {!hasData ? (
-          <div className="h-40 flex items-center justify-center text-slate-300 text-sm">데이터 없음</div>
+          <div className="h-[140px] flex items-center justify-center text-muted-foreground text-xs">No data</div>
         ) : (
-          <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={data} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={140}>
+            <AreaChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
               <defs>
                 <linearGradient id="attendanceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
                   <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Area
-                type="monotone" dataKey="attendance" name="출석"
-                stroke="#3b82f6" strokeWidth={2.5}
-                fill="url(#attendanceGrad)" dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: "#3b82f6" }}
-              />
+              <Area type="monotone" dataKey="attendance" name="Attendance"
+                stroke="#3b82f6" strokeWidth={1.5} fill="url(#attendanceGrad)"
+                dot={false} activeDot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* 월별 수강료 수입 */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-700">월별 수입</h3>
-            <p className="text-xs text-slate-400 mt-0.5">최근 6개월</p>
-          </div>
-          <div className="w-9 h-9 bg-emerald-50 rounded-xl flex items-center justify-center">
-            <span className="text-base">💰</span>
-          </div>
+      <div className="rounded-xl border bg-white p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-[13px] font-medium text-foreground">Revenue</h3>
+          <ChangeIndicator value={revenueChange} />
         </div>
+        <p className="text-[11px] text-muted-foreground mb-3">Last 6 months</p>
         {!hasData ? (
-          <div className="h-40 flex items-center justify-center text-slate-300 text-sm">데이터 없음</div>
+          <div className="h-[140px] flex items-center justify-center text-muted-foreground text-xs">No data</div>
         ) : (
-          <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={140}>
+            <AreaChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
               <defs>
                 <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false}
-                tickFormatter={(v) => v >= 10000 ? `${Math.floor(v/10000)}만` : String(v)} />
-              <Tooltip content={<CustomTooltip formatter={(v) => `₩${v.toLocaleString()}`} />} />
-              <Area
-                type="monotone" dataKey="revenue" name="수입"
-                stroke="#10b981" strokeWidth={2.5}
-                fill="url(#revenueGrad)" dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: "#10b981" }}
-              />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false}
+                tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
+              <Tooltip content={<CustomTooltip formatter={(v) => `$${v.toLocaleString()}`} />} />
+              <Area type="monotone" dataKey="revenue" name="Revenue"
+                stroke="#10b981" strokeWidth={1.5} fill="url(#revenueGrad)"
+                dot={false} activeDot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* 월별 신규 회원 */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-700">신규 회원</h3>
-            <p className="text-xs text-slate-400 mt-0.5">최근 6개월</p>
-          </div>
-          <div className="w-9 h-9 bg-violet-50 rounded-xl flex items-center justify-center">
-            <span className="text-base">👥</span>
-          </div>
+      <div className="rounded-xl border bg-white p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-[13px] font-medium text-foreground">New Members</h3>
+          <ChangeIndicator value={membersChange} />
         </div>
+        <p className="text-[11px] text-muted-foreground mb-3">Last 6 months</p>
         {!hasData ? (
-          <div className="h-40 flex items-center justify-center text-slate-300 text-sm">데이터 없음</div>
+          <div className="h-[140px] flex items-center justify-center text-muted-foreground text-xs">No data</div>
         ) : (
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={data} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={140}>
+            <BarChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="newMembers" name="신규" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="newMembers" name="New" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={24} />
             </BarChart>
           </ResponsiveContainer>
         )}
       </div>
-
     </div>
   );
 }

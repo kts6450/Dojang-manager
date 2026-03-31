@@ -6,13 +6,14 @@ import { Header } from "@/components/shared/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, CalendarDays, MapPin, Users, Trash2, Mail, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDate, formatCurrency, runAfterOverlayTransition } from "@/lib/utils";
 
 interface EventItem {
   _id: string;
@@ -29,14 +30,14 @@ interface EventItem {
 }
 
 const TYPE_MAP: Record<string, string> = {
-  competition: "대회", seminar: "세미나", exam: "심사", social: "행사", other: "기타",
+  competition: "Competition", seminar: "Seminar", exam: "Exam", social: "Social", other: "Other",
 };
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  upcoming: { label: "예정", color: "bg-blue-100 text-blue-700 hover:bg-blue-100" },
-  ongoing: { label: "진행중", color: "bg-green-100 text-green-700 hover:bg-green-100" },
-  completed: { label: "완료", color: "bg-slate-100 text-slate-600 hover:bg-slate-100" },
-  cancelled: { label: "취소", color: "bg-red-100 text-red-700 hover:bg-red-100" },
+const STATUS_MAP: Record<string, { label: string; className: string }> = {
+  upcoming: { label: "Upcoming", className: "border-blue-200 bg-blue-50 text-blue-600" },
+  ongoing: { label: "In Progress", className: "border-green-200 bg-green-50 text-green-600" },
+  completed: { label: "Completed", className: "border-slate-200 bg-slate-50 text-slate-500" },
+  cancelled: { label: "Cancelled", className: "border-red-200 bg-red-50 text-red-600" },
 };
 
 export default function EventsPage() {
@@ -68,9 +69,9 @@ export default function EventsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(`이메일 발송 완료: ${data.sent}/${data.total}명`);
+        toast.success(`Email sent: ${data.sent}/${data.total} recipients`);
       } else {
-        toast.error(data.error ?? "발송 실패");
+        toast.error(data.error ?? "Failed to send");
       }
     } finally {
       setSendingEmail(null);
@@ -78,7 +79,7 @@ export default function EventsPage() {
   }
 
   async function handleSubmit() {
-    if (!form.title || !form.date) { toast.error("제목과 날짜를 입력하세요."); return; }
+    if (!form.title || !form.date) { toast.error("Please enter a title and date."); return; }
     const res = await fetch("/api/events", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -89,13 +90,13 @@ export default function EventsPage() {
       }),
     });
     if (res.ok) {
-      toast.success("이벤트가 등록됐습니다.");
+      toast.success("Event has been created.");
       setShowDialog(false);
       setForm({ title: "", description: "", type: "other", date: new Date().toISOString().split("T")[0], endDate: "", location: "", maxParticipants: "", fee: "", notes: "" });
-      fetchEvents();
+      runAfterOverlayTransition(() => fetchEvents());
     } else {
       const err = await res.json();
-      toast.error(err.error || "오류 발생");
+      toast.error(err.error || "An error occurred");
     }
   }
 
@@ -104,152 +105,188 @@ export default function EventsPage() {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    toast.success("상태가 변경됐습니다.");
-    fetchEvents();
+    toast.success("Status has been updated.");
+    runAfterOverlayTransition(() => fetchEvents());
   }
 
   async function deleteEvent(id: string) {
     await fetch(`/api/events/${id}`, { method: "DELETE" });
-    toast.success("이벤트가 삭제됐습니다.");
-    fetchEvents();
+    toast.success("Event has been deleted.");
+    runAfterOverlayTransition(() => fetchEvents());
   }
 
   return (
     <DashboardLayout>
-      <Header title="이벤트 관리" />
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <Header title="Event Management" />
+      <div className="flex-1 overflow-y-auto p-6 space-y-3">
         <div className="flex justify-between items-center">
-          <p className="text-sm text-slate-500">전체 {events.length}건</p>
-          <Button onClick={() => setShowDialog(true)} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4 mr-2" /> 이벤트 등록
+          <p className="text-[13px] text-slate-500">{events.length} events</p>
+          <Button onClick={() => setShowDialog(true)} size="sm">
+            <Plus className="w-3.5 h-3.5 mr-1.5" strokeWidth={1.5} /> Add Event
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {events.length === 0 ? (
-            <div className="col-span-3 text-center py-16 text-slate-400">
-              <CalendarDays className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-              <p>등록된 이벤트가 없습니다.</p>
-            </div>
-          ) : (
-            events.map((event) => (
-              <Card key={event._id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base font-semibold text-slate-800 leading-tight">
-                      {event.title}
-                    </CardTitle>
-                    <Badge className={STATUS_MAP[event.status]?.color ?? ""}>{STATUS_MAP[event.status]?.label}</Badge>
-                  </div>
-                  <Badge variant="outline" className="w-fit text-xs mt-1">{TYPE_MAP[event.type] ?? event.type}</Badge>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {event.description && <p className="text-sm text-slate-500 line-clamp-2">{event.description}</p>}
-                  <div className="space-y-1 text-sm text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{new Date(event.date).toLocaleDateString("ko-KR")}</span>
-                      {event.endDate && <span>~ {new Date(event.endDate).toLocaleDateString("ko-KR")}</span>}
-                    </div>
-                    {event.location && (
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{event.location}</span>
+        <div className="border border-slate-200 rounded-md">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-slate-200">
+                <TableHead className="text-xs text-slate-500 font-medium h-8">Event</TableHead>
+                <TableHead className="text-xs text-slate-500 font-medium h-8">Type</TableHead>
+                <TableHead className="text-xs text-slate-500 font-medium h-8">Date</TableHead>
+                <TableHead className="text-xs text-slate-500 font-medium h-8">Location</TableHead>
+                <TableHead className="text-xs text-slate-500 font-medium h-8">Participants</TableHead>
+                <TableHead className="text-xs text-slate-500 font-medium h-8">Fee</TableHead>
+                <TableHead className="text-xs text-slate-500 font-medium h-8">Status</TableHead>
+                <TableHead className="text-xs text-slate-500 font-medium h-8">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {events.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-slate-400 text-[13px]">
+                    <CalendarDays className="w-5 h-5 mx-auto mb-1.5 text-slate-300" strokeWidth={1.5} />
+                    No events found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                events.map((event) => (
+                  <TableRow key={event._id} className="border-b border-slate-100">
+                    <TableCell className="py-2">
+                      <div>
+                        <span className="text-[13px] font-medium text-slate-800">{event.title}</span>
+                        {event.description && (
+                          <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{event.description}</p>
+                        )}
                       </div>
-                    )}
-                    <div className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-slate-400" />
-                      <span>참가자 {event.participants?.length ?? 0}명 {event.maxParticipants ? `/ 최대 ${event.maxParticipants}명` : ""}</span>
-                    </div>
-                    {event.fee !== undefined && event.fee > 0 && (
-                      <p className="text-xs text-slate-500">참가비: ₩{event.fee.toLocaleString()}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
-                      onClick={() => handleSendEventEmail(event._id)}
-                      disabled={sendingEmail === event._id}
-                      title="전체 회원에게 이메일 공지"
-                    >
-                      {sendingEmail === event._id
-                        ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : <Mail className="w-3 h-3" />
-                      }
-                      공지
-                    </Button>
-                    <Select value={event.status} onValueChange={(v) => v !== null && updateStatus(event._id, v)}>
-                      <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUS_MAP).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm" variant="ghost"
-                      className="h-8 text-red-500 hover:bg-red-50"
-                      onClick={() => deleteEvent(event._id)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <Badge variant="outline" className="rounded-md text-[11px] font-medium border-slate-200 text-slate-600">
+                        {TYPE_MAP[event.type] ?? event.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <div className="flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3 text-slate-300" strokeWidth={1.5} />
+                        <span className="text-[13px] text-slate-600">{formatDate(event.date)}</span>
+                      </div>
+                      {event.endDate && (
+                        <span className="text-[11px] text-slate-400">to {formatDate(event.endDate)}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      {event.location ? (
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-slate-300" strokeWidth={1.5} />
+                          <span className="text-[13px] text-slate-600">{event.location}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-300">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <div className="flex items-center gap-1">
+                        <Users className="w-3 h-3 text-slate-300" strokeWidth={1.5} />
+                        <span className="text-[13px] text-slate-600">
+                          {event.participants?.length ?? 0}
+                          {event.maxParticipants ? <span className="text-[11px] text-slate-400"> / {event.maxParticipants}</span> : null}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-[13px] text-slate-600 py-2">
+                      {event.fee && event.fee > 0 ? formatCurrency(event.fee) : "—"}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <Badge variant="outline" className={`rounded-md text-[11px] font-medium border ${STATUS_MAP[event.status]?.className ?? "border-slate-200 text-slate-500"}`}>
+                        {STATUS_MAP[event.status]?.label ?? event.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-1.5 text-[11px]"
+                          onClick={() => handleSendEventEmail(event._id)}
+                          disabled={sendingEmail === event._id}
+                          title="Send email notification"
+                        >
+                          {sendingEmail === event._id
+                            ? <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.5} />
+                            : <Mail className="w-3 h-3" strokeWidth={1.5} />
+                          }
+                        </Button>
+                        <Select value={event.status} onValueChange={(v) => v !== null && updateStatus(event._id, v)}>
+                          <SelectTrigger className="h-6 w-[90px] text-[11px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(STATUS_MAP).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm" variant="outline"
+                          className="h-6 px-1.5 text-red-500 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => deleteEvent(event._id)}
+                        >
+                          <Trash2 className="w-3 h-3" strokeWidth={1.5} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>이벤트 등록</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label>제목 *</Label>
-              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <DialogHeader><DialogTitle className="text-[15px]">Add Event</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Title *</Label>
+              <Input className="h-8 text-[13px]" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>종류</Label>
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Type</Label>
                 <Select value={form.type} onValueChange={(v) => v !== null && setForm({ ...form, type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-[13px]"><SelectValue /></SelectTrigger>
                   <SelectContent>{Object.entries(TYPE_MAP).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label>참가비 (원)</Label>
-                <Input type="number" value={form.fee} onChange={(e) => setForm({ ...form, fee: e.target.value })} />
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Fee ($)</Label>
+                <Input className="h-8 text-[13px]" type="number" value={form.fee} onChange={(e) => setForm({ ...form, fee: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>날짜 *</Label>
-                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Date *</Label>
+                <Input className="h-8 text-[13px]" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
               </div>
-              <div className="space-y-1.5">
-                <Label>종료일</Label>
-                <Input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">End Date</Label>
+                <Input className="h-8 text-[13px]" type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>장소</Label>
-                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Location</Label>
+                <Input className="h-8 text-[13px]" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
               </div>
-              <div className="space-y-1.5">
-                <Label>최대 인원</Label>
-                <Input type="number" value={form.maxParticipants} onChange={(e) => setForm({ ...form, maxParticipants: e.target.value })} />
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Max Participants</Label>
+                <Input className="h-8 text-[13px]" type="number" value={form.maxParticipants} onChange={(e) => setForm({ ...form, maxParticipants: e.target.value })} />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>설명</Label>
-              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Description</Label>
+              <Textarea className="text-[13px]" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>취소</Button>
-            <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700">등록</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowDialog(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleSubmit}>Create</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

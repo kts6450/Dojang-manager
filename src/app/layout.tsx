@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/shared/SessionProvider";
+import { QueryProvider } from "@/components/shared/QueryProvider";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -10,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "도장 매니저 - 무도관 통합 관리 시스템",
-  description: "무도관 출결, 수강료, 승급, 회원 관리를 한번에",
+  title: "Dojang Manager - Martial Arts Studio Management",
+  description: "All-in-one management for attendance, tuition, belt promotions, and members",
 };
 
 export default function RootLayout({
@@ -20,13 +21,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="en">
       <body
         className={`${inter.variable} antialiased font-sans`}
+        suppressHydrationWarning
       >
         <SessionProvider>
-          {children}
-          <Toaster richColors position="top-right" />
+          <QueryProvider>
+            {children}
+            <Toaster richColors position="top-right" />
+          </QueryProvider>
         </SessionProvider>
       </body>
     </html>

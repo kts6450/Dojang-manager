@@ -1,33 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db/connect";
-import { InventoryItem } from "@/lib/db/models/InventoryItem";
+import { ZodError } from "zod";
+import { logger } from "@/lib/logger";
+import { inventoryCreateSchema } from "@/lib/validations/inventory";
+import * as inventoryService from "@/services/inventory.service";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const { searchParams } = new URL(req.url);
-  const category = searchParams.get("category");
+    const { searchParams } = new URL(req.url);
+    const category = searchParams.get("category") || undefined;
 
-  const query: Record<string, unknown> = {};
-  if (category) query.category = category;
-
-  const items = await InventoryItem.find(query).sort({ name: 1 }).lean();
-  return NextResponse.json(items);
+    const result = await inventoryService.listItems({ category });
+    return NextResponse.json(result);
+  } catch (error) {
+    logger.error("Failed to list inventory items", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
-  const body = await req.json();
-  const { name, category, quantity, minQuantity, price, supplier, sku, description } = body;
-
-  if (!name) return NextResponse.json({ error: "품목명은 필수입니다." }, { status: 400 });
-
-  const item = await InventoryItem.create({ name, category, quantity: quantity || 0, minQuantity: minQuantity || 0, price: price || 0, supplier, sku, description });
-  return NextResponse.json(item, { status: 201 });
+    const body = inventoryCreateSchema.parse(await req.json());
+    const result = await inventoryService.createItem(body);
+    return NextResponse.json(result, { status: 201 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: error.issues[0].message }, { status: 400 });
+    }
+    if (error instanceof Error && "statusCode" in error) {
+      return NextResponse.json({ error: error.message }, { status: (error as Record<string, unknown>).statusCode as number });
+    }
+    logger.error("Failed to create inventory item", { error: String(error) });
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
+  }
 }

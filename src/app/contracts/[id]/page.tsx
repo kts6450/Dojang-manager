@@ -5,10 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Header } from "@/components/shared/Header";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { SignaturePad } from "@/components/shared/SignaturePad";
 import { ArrowLeft, Download, PenLine, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 interface Contract {
   _id: string;
@@ -24,12 +25,12 @@ interface Contract {
   userId: { _id: string; name: string; email: string; phone?: string };
 }
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  draft: { label: "초안", color: "bg-slate-100 text-slate-600" },
-  pending: { label: "서명 대기", color: "bg-yellow-100 text-yellow-700" },
-  signed: { label: "서명 완료", color: "bg-emerald-100 text-emerald-700" },
-  expired: { label: "만료", color: "bg-red-100 text-red-700" },
-  cancelled: { label: "취소", color: "bg-slate-100 text-slate-500" },
+const STATUS_MAP: Record<string, { label: string; dot: string; text: string }> = {
+  draft: { label: "Draft", dot: "bg-slate-400", text: "text-slate-600 bg-slate-50 border border-slate-200" },
+  pending: { label: "Pending Signature", dot: "bg-yellow-500", text: "text-yellow-700 bg-yellow-50 border border-yellow-200" },
+  signed: { label: "Signed", dot: "bg-emerald-500", text: "text-emerald-700 bg-emerald-50 border border-emerald-200" },
+  expired: { label: "Expired", dot: "bg-red-500", text: "text-red-700 bg-red-50 border border-red-200" },
+  cancelled: { label: "Cancelled", dot: "bg-slate-400", text: "text-slate-500 bg-slate-50 border border-slate-200" },
 };
 
 export default function ContractDetailPage() {
@@ -63,9 +64,9 @@ export default function ContractDetailPage() {
         const updated = await res.json();
         setContract(updated.contract ?? updated);
         setShowSignPad(false);
-        toast.success("전자서명이 완료됐습니다.");
+        toast.success("Signature saved successfully.");
       } else {
-        toast.error("서명 저장에 실패했습니다.");
+        toast.error("Failed to save signature.");
       }
     } finally {
       setSaving(false);
@@ -79,9 +80,9 @@ export default function ContractDetailPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <Header title="계약서 상세" />
+        <Header title="Contract Detail" />
         <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+          <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" strokeWidth={1.5} />
         </div>
       </DashboardLayout>
     );
@@ -90,9 +91,9 @@ export default function ContractDetailPage() {
   if (!contract) {
     return (
       <DashboardLayout>
-        <Header title="계약서 상세" />
-        <div className="flex-1 flex items-center justify-center text-slate-400">
-          계약서를 찾을 수 없습니다.
+        <Header title="Contract Detail" />
+        <div className="flex-1 flex items-center justify-center text-muted-foreground text-[13px]">
+          Contract not found.
         </div>
       </DashboardLayout>
     );
@@ -102,114 +103,91 @@ export default function ContractDetailPage() {
 
   return (
     <DashboardLayout>
-      <Header title="계약서 상세" />
+      <Header title="Contract Detail" />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto space-y-4">
 
-          {/* 상단 액션 바 */}
           <div className="flex items-center justify-between">
-            <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1.5 text-slate-500">
-              <ArrowLeft className="w-4 h-4" /> 목록으로
+            <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1.5 text-muted-foreground text-[13px]">
+              <ArrowLeft className="w-4 h-4" strokeWidth={1.5} /> Back
             </Button>
             <div className="flex gap-2">
               {contract.status !== "signed" && contract.status !== "expired" && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                  className="gap-1.5 text-[13px]"
                   onClick={() => setShowSignPad(true)}
                 >
-                  <PenLine className="w-4 h-4" /> 전자서명
+                  <PenLine className="w-3.5 h-3.5" strokeWidth={1.5} /> Sign
                 </Button>
               )}
-              <Button size="sm" className="gap-1.5 bg-slate-700 hover:bg-slate-800" onClick={handlePrint}>
-                <Download className="w-4 h-4" /> PDF 출력
+              <Button variant="outline" size="sm" className="gap-1.5 text-[13px]" onClick={handlePrint}>
+                <Download className="w-3.5 h-3.5" strokeWidth={1.5} /> Print / PDF
               </Button>
             </div>
           </div>
 
-          {/* 계약서 본문 (인쇄 영역) */}
-          <div id="contract-print" className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div id="contract-print" className="border rounded-lg bg-card overflow-hidden">
 
-            {/* 계약서 헤더 */}
-            <div className="bg-slate-50 border-b border-slate-100 px-8 py-6 text-center">
-              <h1 className="text-2xl font-bold text-slate-800 mb-1">{contract.title}</h1>
-              <span className={cn("text-xs font-semibold px-3 py-1 rounded-full", statusConf.color)}>
+            <div className="border-b px-6 py-4 flex items-center justify-between">
+              <h1 className="text-base font-semibold">{contract.title}</h1>
+              <Badge variant="outline" className={`rounded-md text-[11px] font-normal gap-1.5 ${statusConf.text}`}>
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusConf.dot}`} />
                 {statusConf.label}
-              </span>
+              </Badge>
             </div>
 
-            <div className="px-8 py-6 space-y-6">
+            <div className="px-6 py-5 space-y-5">
 
-              {/* 당사자 정보 */}
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">회원 정보</h3>
+                  <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Member Info</h3>
                   <div className="space-y-1.5">
-                    <div className="flex gap-2 text-sm">
-                      <span className="text-slate-400 w-16 shrink-0">이름</span>
-                      <span className="font-medium text-slate-700">{contract.userId?.name}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm">
-                      <span className="text-slate-400 w-16 shrink-0">이메일</span>
-                      <span className="text-slate-700">{contract.userId?.email}</span>
-                    </div>
+                    <Row label="Name" value={contract.userId?.name} />
+                    <Row label="Email" value={contract.userId?.email} />
                     {contract.userId?.phone && (
-                      <div className="flex gap-2 text-sm">
-                        <span className="text-slate-400 w-16 shrink-0">연락처</span>
-                        <span className="text-slate-700">{contract.userId.phone}</span>
-                      </div>
+                      <Row label="Phone" value={contract.userId.phone} />
                     )}
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">계약 정보</h3>
+                  <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Contract Info</h3>
                   <div className="space-y-1.5">
-                    <div className="flex gap-2 text-sm">
-                      <span className="text-slate-400 w-16 shrink-0">시작일</span>
-                      <span className="text-slate-700">{new Date(contract.startDate).toLocaleDateString("ko-KR")}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm">
-                      <span className="text-slate-400 w-16 shrink-0">종료일</span>
-                      <span className="text-slate-700">{new Date(contract.endDate).toLocaleDateString("ko-KR")}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm">
-                      <span className="text-slate-400 w-16 shrink-0">금액</span>
-                      <span className="font-semibold text-slate-700">₩{contract.amount.toLocaleString()}</span>
-                    </div>
+                    <Row label="Start" value={formatDate(contract.startDate)} />
+                    <Row label="End" value={formatDate(contract.endDate)} />
+                    <Row label="Amount" value={formatCurrency(contract.amount)} bold />
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-slate-100" />
+              <div className="border-t" />
 
-              {/* 계약 내용 */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">계약 내용</h3>
-                <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-2">Terms</h3>
+                <div className="bg-muted/30 border rounded-md p-3 text-[13px] leading-relaxed whitespace-pre-wrap">
                   {contract.terms}
                 </div>
               </div>
 
               {contract.notes && (
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">특이사항</h3>
-                  <p className="text-sm text-slate-600">{contract.notes}</p>
+                  <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Notes</h3>
+                  <p className="text-[13px] text-muted-foreground">{contract.notes}</p>
                 </div>
               )}
 
-              <div className="border-t border-slate-100" />
+              <div className="border-t" />
 
-              {/* 서명 영역 */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">서명</h3>
+                <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-3">Signature</h3>
 
                 {showSignPad ? (
-                  <div className="border border-blue-100 rounded-xl p-4 bg-blue-50/30">
+                  <div className="border rounded-md p-4">
                     {saving ? (
-                      <div className="flex items-center justify-center py-8 gap-2 text-blue-600">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span className="text-sm">저장 중...</span>
+                      <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+                        <span className="text-[13px]">Saving…</span>
                       </div>
                     ) : (
                       <SignaturePad onSave={handleSign} onCancel={() => setShowSignPad(false)} />
@@ -217,30 +195,30 @@ export default function ContractDetailPage() {
                   </div>
                 ) : contract.signatureData ? (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-emerald-600">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span className="text-sm font-medium">
-                        전자서명 완료
+                    <div className="flex items-center gap-1.5 text-emerald-600">
+                      <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      <span className="text-[13px] font-medium">
+                        Signed
                         {contract.signedAt && (
-                          <span className="text-slate-400 font-normal ml-1.5">
-                            ({new Date(contract.signedAt).toLocaleDateString("ko-KR")})
+                          <span className="text-muted-foreground font-normal ml-1.5 text-[11px]">
+                            ({formatDate(contract.signedAt)})
                           </span>
                         )}
                       </span>
                     </div>
-                    <div className="border border-slate-200 rounded-xl p-3 bg-white inline-block">
+                    <div className="border rounded-md p-3 inline-block">
                       <img
                         src={contract.signatureData}
-                        alt="전자서명"
-                        className="max-h-24 max-w-xs"
+                        alt="Signature"
+                        className="max-h-20 max-w-xs"
                       />
                     </div>
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
-                    <PenLine className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-400">서명이 없습니다.</p>
-                    <p className="text-xs text-slate-300 mt-1">위 &apos;전자서명&apos; 버튼을 눌러 서명하세요.</p>
+                  <div className="border border-dashed rounded-md p-6 text-center">
+                    <PenLine className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1.5" strokeWidth={1.5} />
+                    <p className="text-[13px] text-muted-foreground">No signature yet.</p>
+                    <p className="text-[11px] text-muted-foreground/60 mt-0.5">Click the &quot;Sign&quot; button above to add a signature.</p>
                   </div>
                 )}
               </div>
@@ -250,7 +228,6 @@ export default function ContractDetailPage() {
         </div>
       </div>
 
-      {/* 인쇄 스타일 */}
       <style jsx global>{`
         @media print {
           body > * { display: none !important; }
@@ -259,5 +236,14 @@ export default function ContractDetailPage() {
         }
       `}</style>
     </DashboardLayout>
+  );
+}
+
+function Row({ label, value, bold }: { label: string; value?: string; bold?: boolean }) {
+  return (
+    <div className="flex gap-2 text-[13px]">
+      <span className="text-muted-foreground w-14 shrink-0">{label}</span>
+      <span className={bold ? "font-semibold" : ""}>{value ?? "-"}</span>
+    </div>
   );
 }

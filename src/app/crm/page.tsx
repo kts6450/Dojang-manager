@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Trash2, Pencil, PhoneCall, Users, TrendingUp, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatDate, runAfterOverlayTransition } from "@/lib/utils";
 
 interface Lead {
   _id: string;
@@ -29,20 +29,20 @@ interface Lead {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; bg: string }> = {
-  new:       { label: "신규",     color: "text-blue-700",    dot: "bg-blue-500",    bg: "bg-blue-50" },
-  contacted: { label: "연락완료", color: "text-purple-700",  dot: "bg-purple-500",  bg: "bg-purple-50" },
-  trial:     { label: "체험중",   color: "text-yellow-700",  dot: "bg-yellow-500",  bg: "bg-yellow-50" },
-  converted: { label: "회원전환", color: "text-emerald-700", dot: "bg-emerald-500", bg: "bg-emerald-50" },
-  lost:      { label: "이탈",     color: "text-red-500",     dot: "bg-red-400",     bg: "bg-red-50" },
+  new:       { label: "New",       color: "text-blue-700",    dot: "bg-blue-500",    bg: "bg-blue-50" },
+  contacted: { label: "Contacted", color: "text-purple-700",  dot: "bg-purple-500",  bg: "bg-purple-50" },
+  trial:     { label: "Trial",     color: "text-yellow-700",  dot: "bg-yellow-500",  bg: "bg-yellow-50" },
+  converted: { label: "Converted", color: "text-emerald-700", dot: "bg-emerald-500", bg: "bg-emerald-50" },
+  lost:      { label: "Lost",      color: "text-red-500",     dot: "bg-red-400",     bg: "bg-red-50" },
 };
 
-const SOURCE_CONFIG: Record<string, { label: string; icon: string }> = {
-  "walk-in":  { label: "방문",    icon: "🚪" },
-  referral:   { label: "소개",    icon: "👥" },
-  sns:        { label: "SNS",     icon: "📱" },
-  website:    { label: "웹사이트", icon: "🌐" },
-  event:      { label: "이벤트",  icon: "🎉" },
-  other:      { label: "기타",    icon: "📌" },
+const SOURCE_CONFIG: Record<string, { label: string }> = {
+  "walk-in": { label: "Walk-in" },
+  referral:  { label: "Referral" },
+  sns:       { label: "SNS" },
+  website:   { label: "Website" },
+  event:     { label: "Event" },
+  other:     { label: "Other" },
 };
 
 const KANBAN_COLUMNS = ["new", "contacted", "trial", "converted", "lost"] as const;
@@ -95,7 +95,7 @@ export default function CRMPage() {
   }
 
   async function handleSubmit() {
-    if (!form.name) { toast.error("이름은 필수입니다."); return; }
+    if (!form.name) { toast.error("Name is required."); return; }
     const res = editTarget
       ? await fetch(`/api/leads/${editTarget._id}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -107,11 +107,11 @@ export default function CRMPage() {
         });
 
     if (res.ok) {
-      toast.success(editTarget ? "리드 정보가 수정됐습니다." : "리드가 등록됐습니다.");
+      toast.success(editTarget ? "Lead has been updated." : "Lead has been created.");
       setShowDialog(false);
-      fetchLeads();
+      runAfterOverlayTransition(() => fetchLeads());
     } else {
-      toast.error("오류가 발생했습니다.");
+      toast.error("An error occurred.");
     }
   }
 
@@ -120,14 +120,14 @@ export default function CRMPage() {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    toast.success("상태가 변경됐습니다.");
-    fetchLeads();
+    toast.success("Status has been updated.");
+    runAfterOverlayTransition(() => fetchLeads());
   }
 
   async function handleDelete(id: string) {
     await fetch(`/api/leads/${id}`, { method: "DELETE" });
-    toast.success("삭제됐습니다.");
-    fetchLeads();
+    toast.success("Lead has been deleted.");
+    runAfterOverlayTransition(() => fetchLeads());
   }
 
   const totalLeads = Object.values(stats).reduce((a, b) => a + b, 0);
@@ -137,110 +137,106 @@ export default function CRMPage() {
 
   return (
     <DashboardLayout>
-      <Header title="CRM / 리드 관리" />
-      <div className="flex-1 overflow-y-auto bg-slate-50/60">
-        <div className="p-6 space-y-5 max-w-[1400px] mx-auto">
+      <Header title="CRM / Lead Management" />
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 space-y-4 max-w-[1400px] mx-auto">
 
-          {/* 상단 요약 */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: "전체 리드", value: totalLeads, icon: Users, gradient: "from-blue-500 to-blue-600" },
-              { label: "체험 중", value: stats.trial ?? 0, icon: PhoneCall, gradient: "from-yellow-500 to-orange-500" },
-              { label: "회원 전환", value: stats.converted ?? 0, icon: UserCheck, gradient: "from-emerald-500 to-emerald-600" },
-              { label: "전환율", value: `${conversionRate}%`, icon: TrendingUp, gradient: "from-violet-500 to-violet-600" },
-            ].map(({ label, value, icon: Icon, gradient }) => (
-              <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-all">
-                <div className={`w-10 h-10 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center shadow-sm mb-3`}>
-                  <Icon className="w-5 h-5 text-white" />
+              { label: "Total Leads", value: totalLeads, icon: Users },
+              { label: "In Trial", value: stats.trial ?? 0, icon: PhoneCall },
+              { label: "Converted", value: stats.converted ?? 0, icon: UserCheck },
+              { label: "Conversion Rate", value: `${conversionRate}%`, icon: TrendingUp },
+            ].map(({ label, value, icon: Icon }) => (
+              <div key={label} className="border border-slate-200 rounded-md px-4 py-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-slate-500 font-medium">{label}</span>
+                  <Icon className="w-4 h-4 text-slate-400" strokeWidth={1.5} />
                 </div>
-                <p className="text-2xl font-black text-slate-800">{value}</p>
-                <p className="text-xs font-semibold text-slate-500 mt-1">{label}</p>
+                <p className="text-xl font-semibold text-slate-800 tabular-nums">{value}</p>
               </div>
             ))}
           </div>
 
-          {/* 컨트롤 바 */}
           <div className="flex flex-wrap gap-3 items-center justify-between">
             <div className="flex gap-2 items-center flex-1 max-w-md">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input placeholder="이름, 연락처 검색..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.5} />
+                <Input placeholder="Search name, phone..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-[13px]" />
               </div>
               <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
-                <SelectTrigger className="w-32 h-9 text-sm"><SelectValue placeholder="전체" /></SelectTrigger>
+                <SelectTrigger className="w-28 h-8 text-[13px]"><SelectValue placeholder="All" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   {Object.entries(STATUS_CONFIG).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
-              {/* 뷰 토글 */}
-              <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
+            <div className="flex gap-2 items-center">
+              <div className="flex border border-slate-200 rounded-md overflow-hidden">
                 {(["kanban", "list"] as const).map((v) => (
                   <button key={v} onClick={() => setView(v)}
-                    className={cn("px-3 py-1.5 rounded-md text-xs font-semibold transition-all", view === v ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
-                    {v === "kanban" ? "칸반" : "목록"}
+                    className={cn("px-3 py-1.5 text-[11px] font-medium transition-colors", view === v ? "bg-slate-100 text-slate-800" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50")}>
+                    {v === "kanban" ? "Kanban" : "List"}
                   </button>
                 ))}
               </div>
-              <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 gap-2">
-                <Plus className="w-4 h-4" /> 리드 등록
+              <Button onClick={openCreate} size="sm" className="h-8 gap-1.5 text-[13px]">
+                <Plus className="w-3.5 h-3.5" strokeWidth={1.5} /> Add Lead
               </Button>
             </div>
           </div>
 
-          {/* 칸반 뷰 */}
           {view === "kanban" && (
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
               {KANBAN_COLUMNS.map((col) => {
                 const colConf = STATUS_CONFIG[col];
                 const colLeads = leads.filter((l) => l.status === col);
                 return (
-                  <div key={col} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className={cn("px-4 py-3 border-b border-slate-100", colConf.bg)}>
+                  <div key={col} className="border border-slate-200 rounded-md overflow-hidden">
+                    <div className="px-3 py-2 border-b border-slate-200 bg-slate-50/60">
                       <div className="flex items-center gap-2">
-                        <span className={cn("w-2 h-2 rounded-full", colConf.dot)} />
-                        <span className={cn("text-xs font-bold", colConf.color)}>{colConf.label}</span>
-                        <span className="ml-auto text-xs font-black text-slate-500">{colLeads.length}</span>
+                        <span className={cn("w-1.5 h-1.5 rounded-full", colConf.dot)} />
+                        <span className={cn("text-[11px] font-medium", colConf.color)}>{colConf.label}</span>
+                        <span className="ml-auto text-[11px] font-medium text-slate-400 tabular-nums">{colLeads.length}</span>
                       </div>
                     </div>
-                    <div className="p-2 space-y-2 min-h-[120px]">
+                    <div className="p-1.5 space-y-1.5 min-h-[100px]">
                       {colLeads.length === 0 ? (
                         <div className="py-6 text-center">
-                          <UserX className="w-6 h-6 text-slate-200 mx-auto" />
+                          <UserX className="w-5 h-5 text-slate-200 mx-auto" strokeWidth={1.5} />
                         </div>
                       ) : (
                         colLeads.map((lead) => (
                           <div key={lead._id}
-                            className="bg-slate-50 hover:bg-blue-50/50 rounded-xl p-3 transition-all cursor-pointer group border border-transparent hover:border-blue-100"
+                            className="border border-slate-200 rounded-md px-3 py-2 hover:border-slate-300 transition-colors cursor-pointer group"
                             onClick={() => openEdit(lead)}
                           >
-                            <p className="text-sm font-semibold text-slate-700 truncate">{lead.name}</p>
-                            {lead.phone && <p className="text-xs text-slate-400 mt-0.5">{lead.phone}</p>}
+                            <p className="text-[13px] font-medium text-slate-700 truncate">{lead.name}</p>
+                            {lead.phone && <p className="text-[11px] text-slate-400 mt-0.5">{lead.phone}</p>}
                             {lead.interestedIn && (
-                              <p className="text-xs text-blue-500 mt-1 truncate">{lead.interestedIn}</p>
+                              <p className="text-[11px] text-blue-600 mt-1 truncate">{lead.interestedIn}</p>
                             )}
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="text-[10px] text-slate-400">
-                                {SOURCE_CONFIG[lead.source]?.icon} {SOURCE_CONFIG[lead.source]?.label}
+                            <div className="flex items-center justify-between mt-1.5">
+                              <span className="text-[11px] text-slate-400">
+                                {SOURCE_CONFIG[lead.source]?.label}
                               </span>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {col !== "converted" && (
                                   <button
-                                    className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold hover:bg-emerald-100"
+                                    className="text-[11px] text-emerald-600 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 rounded-md font-medium hover:bg-emerald-100"
                                     onClick={(e) => { e.stopPropagation(); handleStatusChange(lead._id, KANBAN_COLUMNS[KANBAN_COLUMNS.indexOf(col) + 1] ?? "converted"); }}
                                   >
-                                    다음 →
+                                    Next
                                   </button>
                                 )}
                                 <button
-                                  className="text-[10px] text-red-400 hover:text-red-600"
+                                  className="text-slate-400 hover:text-red-500 p-0.5"
                                   onClick={(e) => { e.stopPropagation(); handleDelete(lead._id); }}
                                 >
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash2 className="w-3 h-3" strokeWidth={1.5} />
                                 </button>
                               </div>
                             </div>
@@ -254,56 +250,53 @@ export default function CRMPage() {
             </div>
           )}
 
-          {/* 목록 뷰 */}
           {view === "list" && (
-            <Card className="border-slate-100 shadow-sm overflow-hidden">
+            <Card className="border-slate-200 overflow-hidden">
               <CardContent className="p-0">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      {["이름", "연락처", "유입경로", "관심사항", "팔로업 날짜", "상태", "등록일", "관리"].map((h) => (
-                        <th key={h} className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide py-3 px-4">{h}</th>
+                    <tr className="border-b border-slate-200 bg-slate-50/60">
+                      {["Name", "Phone", "Source", "Interest", "Follow-up", "Status", "Created", ""].map((h) => (
+                        <th key={h} className="text-left text-xs font-medium text-slate-500 py-2 px-3">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody>
                     {leads.length === 0 ? (
-                      <tr><td colSpan={8} className="text-center py-12 text-slate-400 text-sm">리드가 없습니다.</td></tr>
+                      <tr><td colSpan={8} className="text-center py-10 text-slate-400 text-[13px]">No leads found.</td></tr>
                     ) : (
                       leads.map((lead) => {
                         const stConf = STATUS_CONFIG[lead.status] ?? STATUS_CONFIG.new;
                         return (
-                          <tr key={lead._id} className="hover:bg-blue-50/20 transition-colors group">
-                            <td className="px-4 py-3.5">
-                              <p className="text-sm font-semibold text-slate-700">{lead.name}</p>
-                              {lead.email && <p className="text-xs text-slate-400">{lead.email}</p>}
+                          <tr key={lead._id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                            <td className="px-3 py-2">
+                              <p className="text-[13px] font-medium text-slate-700">{lead.name}</p>
+                              {lead.email && <p className="text-[11px] text-slate-400">{lead.email}</p>}
                             </td>
-                            <td className="px-4 py-3.5 text-sm text-slate-500">{lead.phone ?? "-"}</td>
-                            <td className="px-4 py-3.5 text-sm">
-                              <span className="text-slate-500">
-                                {SOURCE_CONFIG[lead.source]?.icon} {SOURCE_CONFIG[lead.source]?.label}
-                              </span>
+                            <td className="px-3 py-2 text-[13px] text-slate-500">{lead.phone ?? "-"}</td>
+                            <td className="px-3 py-2 text-[13px] text-slate-500">
+                              {SOURCE_CONFIG[lead.source]?.label ?? lead.source}
                             </td>
-                            <td className="px-4 py-3.5 text-sm text-slate-500 max-w-[140px] truncate">{lead.interestedIn ?? "-"}</td>
-                            <td className="px-4 py-3.5 text-sm text-slate-500">
-                              {lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString("ko-KR") : "-"}
+                            <td className="px-3 py-2 text-[13px] text-slate-500 max-w-[140px] truncate">{lead.interestedIn ?? "-"}</td>
+                            <td className="px-3 py-2 text-[13px] text-slate-500">
+                              {lead.followUpDate ? formatDate(lead.followUpDate) : "-"}
                             </td>
-                            <td className="px-4 py-3.5">
-                              <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full", stConf.bg, stConf.color)}>
+                            <td className="px-3 py-2">
+                              <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-md", stConf.bg, stConf.color)}>
                                 <span className={cn("w-1.5 h-1.5 rounded-full", stConf.dot)} />
                                 {stConf.label}
                               </span>
                             </td>
-                            <td className="px-4 py-3.5 text-sm text-slate-400">
-                              {new Date(lead.createdAt).toLocaleDateString("ko-KR")}
+                            <td className="px-3 py-2 text-[11px] text-slate-400">
+                              {formatDate(lead.createdAt)}
                             </td>
-                            <td className="px-4 py-3.5">
+                            <td className="px-3 py-2">
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => openEdit(lead)}>
-                                  <Pencil className="w-3.5 h-3.5" />
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600" onClick={() => openEdit(lead)}>
+                                  <Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />
                                 </Button>
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50" onClick={() => handleDelete(lead._id)}>
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-red-500" onClick={() => handleDelete(lead._id)}>
+                                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
                                 </Button>
                               </div>
                             </td>
@@ -319,41 +312,40 @@ export default function CRMPage() {
         </div>
       </div>
 
-      {/* 리드 등록/수정 다이얼로그 */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold">{editTarget ? "리드 수정" : "신규 리드 등록"}</DialogTitle>
+            <DialogTitle className="text-[13px] font-semibold">{editTarget ? "Edit Lead" : "Add New Lead"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
+          <div className="space-y-3 py-1">
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2 space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">이름 *</Label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="홍길동" />
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Name *</Label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" className="h-8 text-[13px]" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">연락처</Label>
-                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000" />
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Phone</Label>
+                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(555) 123-4567" className="h-8 text-[13px]" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">이메일</Label>
-                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="example@email.com" />
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Email</Label>
+                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="example@email.com" className="h-8 text-[13px]" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">유입경로</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Source</Label>
                 <Select value={form.source} onValueChange={(v) => v && setForm({ ...form, source: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-[13px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(SOURCE_CONFIG).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v.icon} {v.label}</SelectItem>
+                      <SelectItem key={k} value={k}>{v.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">상태</Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Status</Label>
                 <Select value={form.status} onValueChange={(v) => v && setForm({ ...form, status: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-[13px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(STATUS_CONFIG).map(([k, v]) => (
                       <SelectItem key={k} value={k}>{v.label}</SelectItem>
@@ -361,28 +353,28 @@ export default function CRMPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">관심 프로그램</Label>
-                <Input value={form.interestedIn} onChange={(e) => setForm({ ...form, interestedIn: e.target.value })} placeholder="태권도, 유아체육 등" />
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Interested Program</Label>
+                <Input value={form.interestedIn} onChange={(e) => setForm({ ...form, interestedIn: e.target.value })} placeholder="Taekwondo, Kids Fitness, etc." className="h-8 text-[13px]" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">체험 날짜</Label>
-                <Input type="date" value={form.trialDate} onChange={(e) => setForm({ ...form, trialDate: e.target.value })} />
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Trial Date</Label>
+                <Input type="date" value={form.trialDate} onChange={(e) => setForm({ ...form, trialDate: e.target.value })} className="h-8 text-[13px]" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">팔로업 날짜</Label>
-                <Input type="date" value={form.followUpDate} onChange={(e) => setForm({ ...form, followUpDate: e.target.value })} />
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Follow-up Date</Label>
+                <Input type="date" value={form.followUpDate} onChange={(e) => setForm({ ...form, followUpDate: e.target.value })} className="h-8 text-[13px]" />
               </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">메모</Label>
-                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} placeholder="상담 내용, 특이사항 등" />
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs font-medium text-slate-500">Notes</Label>
+                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} placeholder="Consultation notes, special requests, etc." className="text-[13px]" />
               </div>
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowDialog(false)}>취소</Button>
-            <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700">
-              {editTarget ? "수정 완료" : "등록하기"}
+            <Button variant="outline" size="sm" onClick={() => setShowDialog(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleSubmit}>
+              {editTarget ? "Save Changes" : "Create Lead"}
             </Button>
           </DialogFooter>
         </DialogContent>

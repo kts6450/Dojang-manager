@@ -5,15 +5,15 @@ import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Header } from "@/components/shared/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, CalendarCheck, UserCheck, UserX, Clock, QrCode } from "lucide-react";
+import { Plus, UserCheck, UserX, Clock, CalendarCheck, QrCode } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { cn, formatDate, runAfterOverlayTransition } from "@/lib/utils";
 
 interface AttendanceRecord {
   _id: string;
@@ -27,14 +27,14 @@ interface AttendanceRecord {
 
 interface Member { _id: string; name: string; }
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  present: { label: "출석", color: "bg-green-100 text-green-700 hover:bg-green-100" },
-  absent: { label: "결석", color: "bg-red-100 text-red-700 hover:bg-red-100" },
-  late: { label: "지각", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-100" },
-  excused: { label: "공결", color: "bg-blue-100 text-blue-700 hover:bg-blue-100" },
+const STATUS_MAP: Record<string, { label: string; dot: string }> = {
+  present: { label: "Present", dot: "bg-emerald-500" },
+  absent: { label: "Absent", dot: "bg-red-500" },
+  late: { label: "Late", dot: "bg-yellow-500" },
+  excused: { label: "Excused", dot: "bg-blue-500" },
 };
 
-const CLASS_TYPES = ["태권도", "합기도", "유도", "검도", "권투", "방과후", "기타"];
+const CLASS_TYPES = ["Taekwondo", "Hapkido", "Judo", "Kendo", "Boxing", "After School", "Other"];
 
 export default function AttendancePage() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
@@ -45,7 +45,7 @@ export default function AttendancePage() {
   const [stats, setStats] = useState({ present: 0, absent: 0, late: 0, excused: 0 });
   const [showDialog, setShowDialog] = useState(false);
   const [form, setForm] = useState({
-    userId: "", classType: "태권도", date: new Date().toISOString().split("T")[0],
+    userId: "", classType: "Taekwondo", date: new Date().toISOString().split("T")[0],
     status: "present", method: "manual", notes: "",
   });
 
@@ -72,18 +72,18 @@ export default function AttendancePage() {
   }, []);
 
   async function handleSubmit() {
-    if (!form.userId) { toast.error("회원을 선택하세요."); return; }
+    if (!form.userId) { toast.error("Please select a member."); return; }
     const res = await fetch("/api/attendance", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
     if (res.ok) {
-      toast.success("출결이 등록됐습니다.");
+      toast.success("Attendance recorded successfully.");
       setShowDialog(false);
-      fetchRecords();
+      runAfterOverlayTransition(() => fetchRecords());
     } else {
       const err = await res.json();
-      toast.error(err.error || "오류 발생");
+      toast.error(err.error || "An error occurred");
     }
   }
 
@@ -92,109 +92,138 @@ export default function AttendancePage() {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    toast.success("상태가 변경됐습니다.");
-    fetchRecords();
+    toast.success("Status updated successfully.");
+    runAfterOverlayTransition(() => fetchRecords());
   }
 
   const statCards = [
-    { label: "출석", value: stats.present, icon: UserCheck, color: "text-green-600", bg: "bg-green-50" },
-    { label: "결석", value: stats.absent, icon: UserX, color: "text-red-600", bg: "bg-red-50" },
-    { label: "지각", value: stats.late, icon: Clock, color: "text-yellow-600", bg: "bg-yellow-50" },
-    { label: "공결", value: stats.excused, icon: CalendarCheck, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Present", value: stats.present, icon: UserCheck, dot: "bg-emerald-500" },
+    { label: "Absent", value: stats.absent, icon: UserX, dot: "bg-red-500" },
+    { label: "Late", value: stats.late, icon: Clock, dot: "bg-yellow-500" },
+    { label: "Excused", value: stats.excused, icon: CalendarCheck, dot: "bg-blue-500" },
   ];
 
   return (
     <DashboardLayout>
-      <Header title="출결 관리" />
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        <div className="flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex gap-2 items-center">
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
-            <span className="text-slate-400">~</span>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
-          </div>
-          <div className="flex gap-2">
-            <Link href="/attendance/qr-scan">
-              <Button variant="outline" className="gap-2 border-violet-200 text-violet-600 hover:bg-violet-50">
-                <QrCode className="w-4 h-4" /> QR 체크인
+      <Header title="Attendance" />
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <section className="rounded-xl border bg-white p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                Daily check-in
+              </span>
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Keep class attendance visible in real time.</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Track attendance trends, resolve status changes, and run QR-based front desk check-in.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/attendance/qr-scan">
+                <Button variant="outline" className="h-9 gap-1.5">
+                  <QrCode className="h-4 w-4" strokeWidth={1.5} /> QR Check-in
+                </Button>
+              </Link>
+              <Button onClick={() => setShowDialog(true)} className="h-9">
+                <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Add Attendance
               </Button>
-            </Link>
-            <Button onClick={() => setShowDialog(true)} className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" /> 출결 등록
-            </Button>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <section className="rounded-xl border bg-white p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-[13px] font-semibold text-slate-900">Attendance window</h3>
+              <p className="text-[11px] text-muted-foreground">Review records across a selected date range</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 w-40 text-[13px]" />
+              <span className="text-[11px] text-muted-foreground">to</span>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-40 text-[13px]" />
+            </div>
+          </div>
+        </section>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-            <Card key={label} className="border-0 shadow-sm">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`${bg} p-2.5 rounded-lg`}>
-                  <Icon className={`w-5 h-5 ${color}`} />
+          {statCards.map(({ label, value, icon: Icon, dot }) => (
+            <Card key={label} className="rounded-xl border bg-white shadow-none">
+              <CardContent className="p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">{label}</span>
+                  <Icon className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
                 </div>
-                <div>
-                  <p className="text-xs text-slate-500">{label}</p>
-                  <p className="text-2xl font-bold text-slate-800">{value}</p>
+                <p className="text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
+                <div className="mt-1 flex items-center gap-1">
+                  <span className={cn("w-1.5 h-1.5 rounded-full", dot)} />
+                  <span className="text-[11px] text-muted-foreground">of {total} total</span>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base text-slate-700">출결 기록 ({total}건)</CardTitle>
-          </CardHeader>
+        <Card className="overflow-hidden rounded-xl border bg-white shadow-none">
+          <div className="px-4 py-2.5 border-b">
+            <h3 className="text-[13px] font-medium text-slate-800">Attendance Records</h3>
+            <p className="text-[11px] text-muted-foreground">{total} records</p>
+          </div>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50">
-                  <TableHead>회원</TableHead>
-                  <TableHead>수업</TableHead>
-                  <TableHead>날짜</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead>체크 방식</TableHead>
-                  <TableHead>상태 변경</TableHead>
+                <TableRow className="border-b bg-slate-50/80">
+                  <TableHead className="pl-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">Member</TableHead>
+                  <TableHead className="text-[11px] font-medium text-muted-foreground py-2">Class</TableHead>
+                  <TableHead className="text-[11px] font-medium text-muted-foreground py-2">Date</TableHead>
+                  <TableHead className="text-[11px] font-medium text-muted-foreground py-2">Status</TableHead>
+                  <TableHead className="text-[11px] font-medium text-muted-foreground py-2">Method</TableHead>
+                  <TableHead className="text-[11px] font-medium text-muted-foreground py-2 pr-4">Change Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {records.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-slate-400">
-                      출결 기록이 없습니다.
+                    <TableCell colSpan={6} className="text-center py-12">
+                      <p className="text-[13px] text-muted-foreground">No attendance records found</p>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  records.map((r) => (
-                    <TableRow key={r._id} className="hover:bg-slate-50">
-                      <TableCell className="font-medium">{r.userId?.name ?? "-"}</TableCell>
-                      <TableCell>{r.classType}</TableCell>
-                      <TableCell className="text-slate-500 text-sm">
-                        {new Date(r.date).toLocaleDateString("ko-KR")}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={STATUS_MAP[r.status]?.color ?? ""}>
-                          {STATUS_MAP[r.status]?.label ?? r.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-500">
-                        {r.method === "qr" ? "QR" : "수동"}
-                      </TableCell>
-                      <TableCell>
-                        <Select value={r.status} onValueChange={(v) => v !== null && updateStatus(r._id, v)}>
-                          <SelectTrigger className="h-8 w-24 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="present">출석</SelectItem>
-                            <SelectItem value="absent">결석</SelectItem>
-                            <SelectItem value="late">지각</SelectItem>
-                            <SelectItem value="excused">공결</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  records.map((r) => {
+                    const statusConf = STATUS_MAP[r.status] ?? { label: r.status, dot: "bg-slate-400" };
+                    return (
+                      <TableRow key={r._id} className="hover:bg-slate-50/50 border-b last:border-b-0">
+                        <TableCell className="text-[13px] font-medium text-slate-800 pl-4 py-2">{r.userId?.name ?? "—"}</TableCell>
+                        <TableCell className="text-[13px] text-muted-foreground py-2">{r.classType}</TableCell>
+                        <TableCell className="text-[13px] text-muted-foreground py-2">
+                          {formatDate(r.date)}
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn("w-1.5 h-1.5 rounded-full", statusConf.dot)} />
+                            <span className="text-[11px] text-muted-foreground">{statusConf.label}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-2">
+                          {r.method === "qr" ? "QR" : "Manual"}
+                        </TableCell>
+                        <TableCell className="pr-4 py-2">
+                          <Select value={r.status} onValueChange={(v) => v !== null && updateStatus(r._id, v)}>
+                            <SelectTrigger className="h-7 w-24 text-[11px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="present">Present</SelectItem>
+                              <SelectItem value="absent">Absent</SelectItem>
+                              <SelectItem value="late">Late</SelectItem>
+                              <SelectItem value="excused">Excused</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -205,13 +234,13 @@ export default function AttendancePage() {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>출결 등록</DialogTitle>
+            <DialogTitle className="text-[13px] font-semibold">Add Attendance</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label>회원 *</Label>
+          <div className="space-y-2.5 py-1">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Member *</Label>
               <Select value={form.userId} onValueChange={(v) => v !== null && setForm({ ...form, userId: v })}>
-                <SelectTrigger><SelectValue placeholder="회원 선택" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-[13px]"><SelectValue placeholder="Select member" /></SelectTrigger>
                 <SelectContent>
                   {members.map((m) => (
                     <SelectItem key={m._id} value={m._id}>{m.name}</SelectItem>
@@ -219,35 +248,35 @@ export default function AttendancePage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>수업 종류 *</Label>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Class Type *</Label>
               <Select value={form.classType} onValueChange={(v) => v !== null && setForm({ ...form, classType: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-[13px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CLASS_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>날짜 *</Label>
-              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Date *</Label>
+              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="h-8 text-[13px]" />
             </div>
-            <div className="space-y-1.5">
-              <Label>상태</Label>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Status</Label>
               <Select value={form.status} onValueChange={(v) => v !== null && setForm({ ...form, status: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-[13px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="present">출석</SelectItem>
-                  <SelectItem value="absent">결석</SelectItem>
-                  <SelectItem value="late">지각</SelectItem>
-                  <SelectItem value="excused">공결</SelectItem>
+                  <SelectItem value="present">Present</SelectItem>
+                  <SelectItem value="absent">Absent</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
+                  <SelectItem value="excused">Excused</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>취소</Button>
-            <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700">등록</Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowDialog(false)} className="text-[13px]">Cancel</Button>
+            <Button size="sm" onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 text-[13px]">Register</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
