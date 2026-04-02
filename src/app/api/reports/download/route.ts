@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 import { logger } from "@/lib/logger";
 import { generateReport } from "@/services/report.service";
 import * as XLSX from "xlsx";

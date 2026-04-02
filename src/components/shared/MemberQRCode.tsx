@@ -44,6 +44,7 @@ export function MemberQRCode({ memberId, memberName, open, onClose }: MemberQRCo
         </DialogHeader>
         <div className="flex flex-col items-center gap-4 py-2">
           {qrDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrDataUrl}
               alt={`${memberName} QR 코드`}

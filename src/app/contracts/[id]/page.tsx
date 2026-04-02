@@ -207,6 +207,7 @@ export default function ContractDetailPage() {
                       </span>
                     </div>
                     <div className="border rounded-md p-3 inline-block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={contract.signatureData}
                         alt="Signature"
