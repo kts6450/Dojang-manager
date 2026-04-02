@@ -1,11 +1,14 @@
-import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
+
+export type UserRole = "HQ_ADMIN" | "BRANCH_ADMIN" | "MEMBER" | "STUDENT";
 
 export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
   phone?: string;
-  role: "admin" | "instructor" | "member" | "student";
+  role: UserRole;
+  branchId?: Types.ObjectId;
   status: "active" | "inactive" | "pending";
   belt?: string;
   beltLevel?: number;
@@ -27,9 +30,10 @@ const UserSchema = new Schema<IUser>(
     phone: { type: String },
     role: {
       type: String,
-      enum: ["admin", "instructor", "member", "student"],
-      default: "member",
+      enum: ["HQ_ADMIN", "BRANCH_ADMIN", "MEMBER", "STUDENT"],
+      default: "MEMBER",
     },
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     status: {
       type: String,
       enum: ["active", "inactive", "pending"],

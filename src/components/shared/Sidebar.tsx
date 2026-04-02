@@ -65,11 +65,19 @@ export const navGroups = [
   },
 ];
 
+// HQ_ADMIN only: additional nav group
+const HQ_NAV_GROUP = {
+  label: "본사 전용",
+  items: [
+    { href: "/admin/reports", label: "통합 리포트", icon: BarChart3 },
+  ],
+};
+
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  instructor: "Instructor",
-  member: "Member",
-  student: "Student",
+  HQ_ADMIN: "본사 관리자",
+  BRANCH_ADMIN: "지점 관리자",
+  MEMBER: "회원",
+  STUDENT: "학생",
 };
 
 interface SidebarNavProps {
@@ -82,13 +90,15 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const { data: session } = useSession();
 
   const userName = session?.user?.name ?? "Admin";
-  const userRole = session?.user?.role ?? "admin";
+  const userRole = session?.user?.role ?? "HQ_ADMIN";
   const userInitial = userName.charAt(0).toUpperCase();
+  const isHQ = userRole === "HQ_ADMIN";
+  const allGroups = isHQ ? [...navGroups, HQ_NAV_GROUP] : navGroups;
 
   return (
     <>
       <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
-        {navGroups.map((group) => (
+        {allGroups.map((group) => (
           <div key={group.label} className="mb-1">
             {!collapsed && (
               <p className="px-4 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-400/80 select-none">

@@ -1,7 +1,8 @@
-import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface ILead extends Document {
   name: string;
+  branchId?: Types.ObjectId;
   email?: string;
   phone?: string;
   source: "walk-in" | "referral" | "sns" | "website" | "event" | "other";
@@ -19,6 +20,7 @@ export interface ILead extends Document {
 const LeadSchema = new Schema<ILead>(
   {
     name: { type: String, required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     email: { type: String },
     phone: { type: String },
     source: {

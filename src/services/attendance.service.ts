@@ -1,6 +1,8 @@
 import { connectDB } from "@/lib/db/connect";
 import Attendance from "@/lib/db/models/Attendance";
 import User from "@/lib/db/models/User";
+import type { ServiceContext } from "@/lib/service-context";
+import { branchScope } from "@/lib/service-context";
 
 interface ListAttendanceQuery {
   userId?: string;
@@ -11,11 +13,21 @@ interface ListAttendanceQuery {
   limit?: number;
 }
 
-export async function listAttendance({ userId, dateFrom, dateTo, status, page = 1, limit = 50 }: ListAttendanceQuery) {
+export async function listAttendance(
+  { userId, dateFrom, dateTo, status, page = 1, limit = 50 }: ListAttendanceQuery,
+  ctx: ServiceContext
+) {
   await connectDB();
 
-  const filter: Record<string, unknown> = {};
-  if (userId) filter.userId = userId;
+  const filter: Record<string, unknown> = { ...branchScope(ctx) };
+
+  // MEMBER/STUDENT: only their own records
+  if (ctx.role === "MEMBER" || ctx.role === "STUDENT") {
+    filter.userId = ctx.userId;
+  } else if (userId) {
+    filter.userId = userId;
+  }
+
   if (status) filter.status = status;
   if (dateFrom || dateTo) {
     filter.date = {};
@@ -51,7 +63,7 @@ interface CreateAttendanceData {
   notes?: string;
 }
 
-export async function createAttendance(data: CreateAttendanceData) {
+export async function createAttendance(data: CreateAttendanceData, ctx: ServiceContext) {
   await connectDB();
 
   const { userId, classType, date, status, method, notes } = data;
@@ -63,25 +75,32 @@ export async function createAttendance(data: CreateAttendanceData) {
   const record = await Attendance.create({
     userId, classType, date: new Date(date),
     status: status || "present", method: method || "manual", notes,
+    branchId: ctx.branchId || undefined,
   });
 
   return record;
 }
 
-export async function updateAttendance(id: string, data: Record<string, unknown>) {
+export async function updateAttendance(id: string, data: Record<string, unknown>, ctx: ServiceContext) {
   await connectDB();
 
-  const record = await Attendance.findByIdAndUpdate(id, data, { new: true });
+  const scopeFilter = branchScope(ctx);
+  const record = await Attendance.findOneAndUpdate(
+    { _id: id, ...scopeFilter },
+    data,
+    { new: true }
+  );
   if (!record) {
     throw Object.assign(new Error("Record not found."), { statusCode: 404 });
   }
   return record;
 }
 
-export async function deleteAttendance(id: string) {
+export async function deleteAttendance(id: string, ctx: ServiceContext) {
   await connectDB();
 
-  const record = await Attendance.findByIdAndDelete(id);
+  const scopeFilter = branchScope(ctx);
+  const record = await Attendance.findOneAndDelete({ _id: id, ...scopeFilter });
   if (!record) {
     throw Object.assign(new Error("Record not found."), { statusCode: 404 });
   }
@@ -91,7 +110,7 @@ export async function deleteAttendance(id: string) {
 export async function qrCheckIn(memberId: string, classType?: string) {
   await connectDB();
 
-  const user = await User.findById(memberId).select("name belt role status").lean();
+  const user = await User.findById(memberId).select("name belt role status branchId").lean();
   if (!user) {
     throw Object.assign(new Error("Member not found."), { statusCode: 404 });
   }
@@ -124,6 +143,7 @@ export async function qrCheckIn(memberId: string, classType?: string) {
     date: new Date(),
     status: "present",
     method: "qr",
+    branchId: String((user as unknown as Record<string, unknown>).branchId ?? "") || undefined,
   });
 
   return {
@@ -138,7 +158,7 @@ interface StatsQuery {
   month?: number;
 }
 
-export async function getStats({ year, month }: StatsQuery) {
+export async function getStats({ year, month }: StatsQuery, ctx: ServiceContext) {
   await connectDB();
 
   const now = new Date();
@@ -148,9 +168,11 @@ export async function getStats({ year, month }: StatsQuery) {
   const startDate = new Date(y, m - 1, 1);
   const endDate = new Date(y, m, 0, 23, 59, 59);
 
+  const scopeFilter = branchScope(ctx);
+
   const [daily, summary] = await Promise.all([
     Attendance.aggregate([
-      { $match: { date: { $gte: startDate, $lte: endDate } } },
+      { $match: { date: { $gte: startDate, $lte: endDate }, ...scopeFilter } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
@@ -163,7 +185,7 @@ export async function getStats({ year, month }: StatsQuery) {
       { $sort: { _id: 1 } },
     ]),
     Attendance.aggregate([
-      { $match: { date: { $gte: startDate, $lte: endDate } } },
+      { $match: { date: { $gte: startDate, $lte: endDate }, ...scopeFilter } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]),
   ]);

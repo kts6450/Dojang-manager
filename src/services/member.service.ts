@@ -1,6 +1,8 @@
 import { connectDB } from "@/lib/db/connect";
 import User from "@/lib/db/models/User";
 import bcrypt from "bcryptjs";
+import type { ServiceContext } from "@/lib/service-context";
+import { branchScope } from "@/lib/service-context";
 
 const UPDATABLE_FIELDS = [
   "name", "phone", "belt", "beltLevel", "birthDate",
@@ -23,10 +25,14 @@ interface ListMembersQuery {
   limit?: number;
 }
 
-export async function listMembers({ search, role, status, page = 1, limit = 20 }: ListMembersQuery) {
+export async function listMembers(
+  { search, role, status, page = 1, limit = 20 }: ListMembersQuery,
+  ctx: ServiceContext
+) {
   await connectDB();
 
-  const filter: Record<string, unknown> = {};
+  const filter: Record<string, unknown> = { ...branchScope(ctx) };
+
   if (search) {
     filter.$or = [
       { name: { $regex: search, $options: "i" } },
@@ -36,6 +42,11 @@ export async function listMembers({ search, role, status, page = 1, limit = 20 }
   }
   if (role) filter.role = role;
   if (status) filter.status = status;
+
+  // MEMBER/STUDENT can only see themselves
+  if (ctx.role === "MEMBER" || ctx.role === "STUDENT") {
+    filter._id = ctx.userId;
+  }
 
   const [members, total] = await Promise.all([
     User.find(filter)
@@ -64,7 +75,7 @@ interface CreateMemberData {
   notes?: string;
 }
 
-export async function createMember(data: CreateMemberData) {
+export async function createMember(data: CreateMemberData, ctx: ServiceContext) {
   await connectDB();
 
   const { name, email, password, phone, role, belt, beltLevel, birthDate, address, emergencyContact, notes } = data;
@@ -79,29 +90,44 @@ export async function createMember(data: CreateMemberData) {
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
-  const user = await User.create({
-    name, email, password: hashedPassword, phone,
-    role: role || "member", belt: belt || "white", beltLevel: beltLevel || 1,
-    birthDate, address, emergencyContact, notes,
-  });
+  const assignedBranchId: string | undefined = ctx.role === "BRANCH_ADMIN"
+    ? (ctx.branchId ?? undefined)
+    : ((data as unknown as Record<string, unknown>).branchId as string | undefined) ?? ctx.branchId ?? undefined;
 
+  const created = await User.insertMany([{
+    name, email, password: hashedPassword, phone,
+    role: role || "MEMBER", belt: belt || "white", beltLevel: beltLevel || 1,
+    birthDate, address, emergencyContact, notes,
+    branchId: assignedBranchId || undefined,
+  }]);
+  const newUser = created[0];
+  const userObj = newUser.toObject() as unknown as Record<string, unknown>;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { password: _pw, ...userData } = user.toObject();
+  const { password: _pw, ...userData } = userObj;
   return userData;
 }
 
-export async function getMember(id: string) {
+export async function getMember(id: string, ctx: ServiceContext) {
   await connectDB();
 
-  const user = await User.findById(id).select("-password").lean();
+  const scopeFilter = branchScope(ctx);
+  const idFilter = (ctx.role === "MEMBER" || ctx.role === "STUDENT") ? ctx.userId : id;
+  const filter: Record<string, unknown> = { _id: idFilter, ...scopeFilter };
+
+  const user = await User.findOne(filter).select("-password").lean();
   if (!user) {
     throw Object.assign(new Error("Member not found."), { statusCode: 404 });
   }
   return user;
 }
 
-export async function updateMember(id: string, body: Record<string, unknown>) {
+export async function updateMember(id: string, body: Record<string, unknown>, ctx: ServiceContext) {
   await connectDB();
+
+  // Only HQ_ADMIN/BRANCH_ADMIN can update members
+  if (ctx.role === "MEMBER" || ctx.role === "STUDENT") {
+    throw Object.assign(new Error("Forbidden."), { statusCode: 403 });
+  }
 
   const update = pickAllowed(body);
 
@@ -115,17 +141,27 @@ export async function updateMember(id: string, body: Record<string, unknown>) {
     throw Object.assign(new Error("No fields to update."), { statusCode: 400 });
   }
 
-  const user = await User.findByIdAndUpdate(id, update, { new: true }).select("-password").lean();
+  const scopeFilter = branchScope(ctx);
+  const user = await User.findOneAndUpdate(
+    { _id: id, ...scopeFilter },
+    update,
+    { new: true }
+  ).select("-password").lean();
   if (!user) {
     throw Object.assign(new Error("Member not found."), { statusCode: 404 });
   }
   return user;
 }
 
-export async function deleteMember(id: string) {
+export async function deleteMember(id: string, ctx: ServiceContext) {
   await connectDB();
 
-  const deleted = await User.findByIdAndDelete(id);
+  if (ctx.role === "MEMBER" || ctx.role === "STUDENT") {
+    throw Object.assign(new Error("Forbidden."), { statusCode: 403 });
+  }
+
+  const scopeFilter = branchScope(ctx);
+  const deleted = await User.findOneAndDelete({ _id: id, ...scopeFilter });
   if (!deleted) {
     throw Object.assign(new Error("Member not found."), { statusCode: 404 });
   }

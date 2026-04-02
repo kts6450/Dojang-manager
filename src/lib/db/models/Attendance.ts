@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IAttendance extends Document {
   userId: Types.ObjectId;
+  branchId?: Types.ObjectId;
   classType: string;
   date: Date;
   checkInTime?: Date;
@@ -16,6 +17,7 @@ export interface IAttendance extends Document {
 const AttendanceSchema = new Schema<IAttendance>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     classType: { type: String, required: true },
     date: { type: Date, required: true },
     checkInTime: { type: Date },

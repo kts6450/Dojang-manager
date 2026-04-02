@@ -2,8 +2,9 @@
 
 import { useSession } from "next-auth/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bell, Search } from "lucide-react";
+import { Bell, Building2, ChevronDown, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useBranch } from "@/contexts/BranchContext";
 
 const PAGE_META: Record<string, { title: string; description: string }> = {
   "/": { title: "Dashboard", description: "Studio performance at a glance." },
@@ -18,19 +19,22 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   "/after-school": { title: "After School", description: "Program enrollment and schedules." },
   "/events": { title: "Events", description: "Tournaments, seminars, and studio events." },
   "/reports": { title: "Reports", description: "Analytics and performance insights." },
+  "/admin/reports": { title: "HQ Reports", description: "Cross-branch consolidated analytics." },
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  instructor: "Instructor",
-  member: "Member",
-  student: "Student",
+  HQ_ADMIN: "본사 관리자",
+  BRANCH_ADMIN: "지점 관리자",
+  MEMBER: "회원",
+  STUDENT: "학생",
 };
 
 export function Header({ title }: { title: string }) {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const { branches, selectedBranchId, selectedBranch, setSelectedBranchId } = useBranch();
 
+  const isHQ = session?.user?.role === "HQ_ADMIN";
   const meta = PAGE_META[pathname] ?? { title, description: "" };
   const roleLabel = ROLE_LABELS[session?.user?.role ?? ""] ?? "Admin";
   const userName = session?.user?.name ?? "Admin";
@@ -52,8 +56,39 @@ export function Header({ title }: { title: string }) {
 
       {/* Actions */}
       <div className="flex items-center gap-2 shrink-0">
+
+        {/* HQ_ADMIN Branch Selector */}
+        {isHQ && (
+          <div className="relative group">
+            <select
+              value={selectedBranchId ?? ""}
+              onChange={(e) => setSelectedBranchId(e.target.value || null)}
+              className="h-8 appearance-none pl-7 pr-7 rounded-md border border-slate-200 bg-slate-50 text-[12px] text-slate-700 font-medium hover:bg-slate-100 hover:border-indigo-300 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 transition-colors cursor-pointer min-w-[140px]"
+            >
+              <option value="">전체 지점</option>
+              {branches.map((b) => (
+                <option key={b._id} value={b._id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            <Building2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-500 pointer-events-none" strokeWidth={1.5} />
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" strokeWidth={2} />
+          </div>
+        )}
+
+        {/* BRANCH_ADMIN: show branch badge */}
+        {session?.user?.role === "BRANCH_ADMIN" && (
+          <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-slate-200 bg-slate-50">
+            <Building2 className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.5} />
+            <span className="text-[12px] text-slate-600 font-medium">
+              {selectedBranch?.name ?? "내 지점"}
+            </span>
+          </div>
+        )}
+
         {/* Search */}
-        <button className="hidden xl:flex items-center gap-2 h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-[12px] text-slate-400 hover:bg-slate-100 hover:border-slate-300 transition-colors min-w-[180px]">
+        <button className="hidden xl:flex items-center gap-2 h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-[12px] text-slate-400 hover:bg-slate-100 hover:border-slate-300 transition-colors min-w-[160px]">
           <Search className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
           <span className="flex-1 text-left">Search</span>
           <kbd className="ml-auto flex items-center gap-0.5 rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-400">

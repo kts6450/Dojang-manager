@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IEvent extends Document {
   title: string;
+  branchId?: Types.ObjectId;
   description?: string;
   type: "competition" | "seminar" | "exam" | "social" | "other";
   date: Date;
@@ -19,6 +20,7 @@ export interface IEvent extends Document {
 const EventSchema = new Schema<IEvent>(
   {
     title: { type: String, required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     description: { type: String },
     type: {
       type: String,

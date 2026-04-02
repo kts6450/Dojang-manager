@@ -4,6 +4,10 @@ import { ZodError } from "zod";
 import { logger } from "@/lib/logger";
 import { memberCreateSchema } from "@/lib/validations/member";
 import * as memberService from "@/services/member.service";
+import type { ServiceContext } from "@/lib/service-context";
+import type { UserRole } from "@/lib/rbac";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,13 +15,20 @@ export async function GET(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    const search = searchParams.get("search") || "";
-    const role = searchParams.get("role") || "";
-    const status = searchParams.get("status") || "";
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const ctx: ServiceContext = {
+      userId: session.user.id,
+      role: session.user.role as UserRole,
+      branchId: session.user.branchId,
+      selectedBranchId: searchParams.get("branchId"),
+    };
 
-    const result = await memberService.listMembers({ search, role, status, page, limit });
+    const result = await memberService.listMembers({
+      search: searchParams.get("search") || "",
+      role: searchParams.get("role") || "",
+      status: searchParams.get("status") || "",
+      page: parseInt(searchParams.get("page") || "1"),
+      limit: parseInt(searchParams.get("limit") || "20"),
+    }, ctx);
     return NextResponse.json(result);
   } catch (error) {
     logger.error("Failed to list members", { error: String(error) });
@@ -30,8 +41,14 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const ctx: ServiceContext = {
+      userId: session.user.id,
+      role: session.user.role as UserRole,
+      branchId: session.user.branchId,
+    };
+
     const body = memberCreateSchema.parse(await req.json());
-    const result = await memberService.createMember(body);
+    const result = await memberService.createMember(body, ctx);
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

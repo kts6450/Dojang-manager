@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IContract extends Document {
   userId: Types.ObjectId;
+  branchId?: Types.ObjectId;
   title: string;
   terms: string;
   startDate: Date;
@@ -19,6 +20,7 @@ export interface IContract extends Document {
 const ContractSchema = new Schema<IContract>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     title: { type: String, required: true },
     terms: { type: String, required: true },
     startDate: { type: Date, required: true },

@@ -13,11 +13,11 @@ export async function POST() {
   const hash = await bcrypt.hash("admin1234", 12);
 
   const defaultUsers = [
-    { email: "admin@dojang.com", name: "Administrator", role: "admin", belt: "black", beltLevel: 9 },
-    { email: "taekwon@dojang.com", name: "Kim Taekwon", role: "instructor", belt: "black", beltLevel: 4 },
-    { email: "member1@dojang.com", name: "Lee Member", role: "member", belt: "blue", beltLevel: 2 },
-    { email: "student1@dojang.com", name: "Park Student", role: "student", belt: "yellow", beltLevel: 1 },
-    { email: "student2@dojang.com", name: "Choi Student", role: "student", belt: "orange", beltLevel: 1 },
+    { email: "hq@dojang.com", name: "본사 관리자", role: "HQ_ADMIN", belt: "black", beltLevel: 9 },
+    { email: "seoul@dojang.com", name: "강남점 관리자", role: "BRANCH_ADMIN", belt: "black", beltLevel: 4 },
+    { email: "busan@dojang.com", name: "해운대점 관리자", role: "BRANCH_ADMIN", belt: "black", beltLevel: 4 },
+    { email: "member1@dojang.com", name: "이회원", role: "MEMBER", belt: "blue", beltLevel: 2 },
+    { email: "student1@dojang.com", name: "박학생", role: "STUDENT", belt: "yellow", beltLevel: 1 },
   ];
 
   const results = [];

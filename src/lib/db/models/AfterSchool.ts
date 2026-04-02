@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IAfterSchool extends Document {
   studentId: Types.ObjectId;
+  branchId?: Types.ObjectId;
   programName: string;
   schedule: {
     dayOfWeek: number[];
@@ -20,6 +21,7 @@ export interface IAfterSchool extends Document {
 const AfterSchoolSchema = new Schema<IAfterSchool>(
   {
     studentId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     programName: { type: String, required: true },
     schedule: {
       dayOfWeek: [{ type: Number }],

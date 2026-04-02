@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface ITuition extends Document {
   userId: Types.ObjectId;
+  branchId?: Types.ObjectId;
   amount: number;
   description: string;
   dueDate: Date;
@@ -17,6 +18,7 @@ export interface ITuition extends Document {
 const TuitionSchema = new Schema<ITuition>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     amount: { type: Number, required: true },
     description: { type: String, required: true },
     dueDate: { type: Date, required: true },

@@ -4,14 +4,25 @@ import { ZodError } from "zod";
 import { logger } from "@/lib/logger";
 import { memberUpdateSchema } from "@/lib/validations/member";
 import * as memberService from "@/services/member.service";
+import type { Session } from "next-auth";
+import type { ServiceContext } from "@/lib/service-context";
+import type { UserRole } from "@/lib/rbac";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+function buildCtx(session: Session): ServiceContext {
+  return {
+    userId: session.user.id,
+    role: session.user.role as UserRole,
+    branchId: session.user.branchId,
+  };
+}
+
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
-    const user = await memberService.getMember(id);
+    const user = await memberService.getMember(id, buildCtx(session!));
     return NextResponse.json(user);
   } catch (error) {
     if (error instanceof Error && "statusCode" in error) {
@@ -29,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const { id } = await params;
     const body = memberUpdateSchema.parse(await req.json());
-    const user = await memberService.updateMember(id, body);
+    const user = await memberService.updateMember(id, body as Record<string, unknown>, buildCtx(session!));
     return NextResponse.json(user);
   } catch (error) {
     if (error instanceof ZodError) {
@@ -43,13 +54,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
-    const result = await memberService.deleteMember(id);
+    const result = await memberService.deleteMember(id, buildCtx(session!));
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof Error && "statusCode" in error) {

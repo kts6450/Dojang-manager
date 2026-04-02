@@ -1,6 +1,7 @@
-import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IInventoryItem extends Document {
+  branchId?: Types.ObjectId;
   name: string;
   category: "uniform" | "equipment" | "book" | "merchandise" | "other";
   quantity: number;
@@ -24,6 +25,7 @@ export interface IInventoryLog extends Document {
 
 const InventoryItemSchema = new Schema<IInventoryItem>(
   {
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     name: { type: String, required: true },
     category: {
       type: String,

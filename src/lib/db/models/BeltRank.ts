@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IBeltRank extends Document {
   userId: Types.ObjectId;
+  branchId?: Types.ObjectId;
   belt: string;
   beltLevel: number;
   previousBelt?: string;
@@ -18,6 +19,7 @@ export interface IBeltRank extends Document {
 const BeltRankSchema = new Schema<IBeltRank>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     belt: { type: String, required: true },
     beltLevel: { type: Number, required: true },
     previousBelt: { type: String },

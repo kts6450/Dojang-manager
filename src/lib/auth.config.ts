@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { isAdminRole } from "./rbac";
 
 /**
  * Edge-compatible auth config (no mongoose/DB access)
@@ -10,8 +11,27 @@ export const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   callbacks: {
+    jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as { role?: string }).role;
+        token.branchId = (user as { branchId?: string | null }).branchId ?? null;
+        token.belt = (user as { belt?: string }).belt;
+      }
+      return token;
+    },
+    session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as import("./rbac").UserRole;
+        session.user.branchId = token.branchId as string | null;
+        session.user.belt = token.belt as string;
+      }
+      return session;
+    },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
+      const role = auth?.user?.role ?? "";
       const isLoginPage = nextUrl.pathname.startsWith("/login");
       const isPublicApi =
         nextUrl.pathname.startsWith("/api/auth") ||
@@ -21,30 +41,15 @@ export const authConfig: NextAuthConfig = {
 
       if (isPublicApi) return true;
       if (isLoginPage) {
-        if (isLoggedIn) return Response.redirect(new URL("/", nextUrl));
+        if (isLoggedIn && isAdminRole(role)) return Response.redirect(new URL("/", nextUrl));
         return true;
       }
       if (!isLoggedIn) return false;
       return true;
     },
-    jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = (user as { role?: string }).role;
-        token.belt = (user as { belt?: string }).belt;
-      }
-      return token;
-    },
-    session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.belt = token.belt as string;
-      }
-      return session;
-    },
   },
   session: {
     strategy: "jwt",
+    maxAge: 8 * 60 * 60, // 8 hours
   },
 };

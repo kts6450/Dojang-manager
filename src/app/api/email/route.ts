@@ -6,7 +6,7 @@ import * as emailService from "@/services/email-campaign.service";
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || session.user?.role !== "admin") {
+    if (!session || (session.user?.role !== "HQ_ADMIN" && session.user?.role !== "BRANCH_ADMIN")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

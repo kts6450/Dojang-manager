@@ -4,6 +4,10 @@ import { ZodError } from "zod";
 import { logger } from "@/lib/logger";
 import { tuitionCreateSchema } from "@/lib/validations/tuition";
 import * as tuitionService from "@/services/tuition.service";
+import type { ServiceContext } from "@/lib/service-context";
+import type { UserRole } from "@/lib/rbac";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,14 +15,21 @@ export async function GET(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId") || undefined;
-    const status = searchParams.get("status") || undefined;
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const ctx: ServiceContext = {
+      userId: session.user.id,
+      role: session.user.role as UserRole,
+      branchId: session.user.branchId,
+      selectedBranchId: searchParams.get("branchId"),
+    };
 
     const [listResult, summary] = await Promise.all([
-      tuitionService.listTuition({ userId, status, page, limit }),
-      tuitionService.getSummary(),
+      tuitionService.listTuition({
+        userId: searchParams.get("userId") || undefined,
+        status: searchParams.get("status") || undefined,
+        page: parseInt(searchParams.get("page") || "1"),
+        limit: parseInt(searchParams.get("limit") || "20"),
+      }, ctx),
+      tuitionService.getSummary(ctx),
     ]);
 
     return NextResponse.json({ ...listResult, summary });
@@ -33,8 +44,14 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const ctx: ServiceContext = {
+      userId: session.user.id,
+      role: session.user.role as UserRole,
+      branchId: session.user.branchId,
+    };
+
     const body = tuitionCreateSchema.parse(await req.json());
-    const result = await tuitionService.createTuition(body);
+    const result = await tuitionService.createTuition(body, ctx);
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

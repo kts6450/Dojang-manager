@@ -4,6 +4,10 @@ import { ZodError } from "zod";
 import { logger } from "@/lib/logger";
 import { attendanceCreateSchema } from "@/lib/validations/attendance";
 import * as attendanceService from "@/services/attendance.service";
+import type { ServiceContext } from "@/lib/service-context";
+import type { UserRole } from "@/lib/rbac";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,14 +15,21 @@ export async function GET(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId") || undefined;
-    const dateFrom = searchParams.get("dateFrom") || undefined;
-    const dateTo = searchParams.get("dateTo") || undefined;
-    const status = searchParams.get("status") || undefined;
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const ctx: ServiceContext = {
+      userId: session.user.id,
+      role: session.user.role as UserRole,
+      branchId: session.user.branchId,
+      selectedBranchId: searchParams.get("branchId"),
+    };
 
-    const result = await attendanceService.listAttendance({ userId, dateFrom, dateTo, status, page, limit });
+    const result = await attendanceService.listAttendance({
+      userId: searchParams.get("userId") || undefined,
+      dateFrom: searchParams.get("dateFrom") || undefined,
+      dateTo: searchParams.get("dateTo") || undefined,
+      status: searchParams.get("status") || undefined,
+      page: parseInt(searchParams.get("page") || "1"),
+      limit: parseInt(searchParams.get("limit") || "50"),
+    }, ctx);
     return NextResponse.json(result);
   } catch (error) {
     logger.error("Failed to list attendance", { error: String(error) });
@@ -31,8 +42,14 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const ctx: ServiceContext = {
+      userId: session.user.id,
+      role: session.user.role as UserRole,
+      branchId: session.user.branchId,
+    };
+
     const body = attendanceCreateSchema.parse(await req.json());
-    const result = await attendanceService.createAttendance(body);
+    const result = await attendanceService.createAttendance(body, ctx);
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

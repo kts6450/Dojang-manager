@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IOnlineClass extends Document {
+  branchId?: Types.ObjectId;
   title: string;
   description?: string;
   instructor: Types.ObjectId;
@@ -20,6 +21,7 @@ export interface IOnlineClass extends Document {
 
 const OnlineClassSchema = new Schema<IOnlineClass>(
   {
+    branchId: { type: Schema.Types.ObjectId, ref: "Branch", default: null },
     title: { type: String, required: true },
     description: { type: String },
     instructor: { type: Schema.Types.ObjectId, ref: "User", required: true },
