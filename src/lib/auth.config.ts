@@ -10,6 +10,12 @@ export const authConfig: NextAuthConfig = {
   pages: {
     signIn: "/login",
   },
+  cookies: {
+    sessionToken: {
+      name: "manager.session-token",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+    },
+  },
   callbacks: {
     jwt({ token, user }) {
       if (user) {

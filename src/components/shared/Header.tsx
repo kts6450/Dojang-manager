@@ -19,14 +19,14 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   "/after-school": { title: "After School", description: "Program enrollment and schedules." },
   "/events": { title: "Events", description: "Tournaments, seminars, and studio events." },
   "/reports": { title: "Reports", description: "Analytics and performance insights." },
-  "/admin/reports": { title: "HQ Reports", description: "Cross-branch consolidated analytics." },
+  "/admin/reports": { title: "Corporate Overview", description: "Cross-branch consolidated analytics." },
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  HQ_ADMIN: "본사 관리자",
-  BRANCH_ADMIN: "지점 관리자",
-  MEMBER: "회원",
-  STUDENT: "학생",
+  HQ_ADMIN: "HQ Admin",
+  BRANCH_ADMIN: "Branch Manager",
+  MEMBER: "Member",
+  STUDENT: "Student",
 };
 
 export function Header({ title }: { title: string }) {
@@ -65,7 +65,7 @@ export function Header({ title }: { title: string }) {
               onChange={(e) => setSelectedBranchId(e.target.value || null)}
               className="h-8 appearance-none pl-7 pr-7 rounded-md border border-slate-200 bg-slate-50 text-[12px] text-slate-700 font-medium hover:bg-slate-100 hover:border-indigo-300 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 transition-colors cursor-pointer min-w-[140px]"
             >
-              <option value="">전체 지점</option>
+              <option value="">All Branches</option>
               {branches.map((b) => (
                 <option key={b._id} value={b._id}>
                   {b.name}
@@ -82,7 +82,7 @@ export function Header({ title }: { title: string }) {
           <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-slate-200 bg-slate-50">
             <Building2 className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.5} />
             <span className="text-[12px] text-slate-600 font-medium">
-              {selectedBranch?.name ?? "내 지점"}
+              {selectedBranch?.name ?? "My Branch"}
             </span>
           </div>
         )}

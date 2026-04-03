@@ -67,17 +67,17 @@ export const navGroups = [
 
 // HQ_ADMIN only: additional nav group
 const HQ_NAV_GROUP = {
-  label: "본사 전용",
+  label: "HQ Management",
   items: [
-    { href: "/admin/reports", label: "통합 리포트", icon: BarChart3 },
+    { href: "/admin/reports", label: "Corporate Overview", icon: BarChart3 },
   ],
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  HQ_ADMIN: "본사 관리자",
-  BRANCH_ADMIN: "지점 관리자",
-  MEMBER: "회원",
-  STUDENT: "학생",
+  HQ_ADMIN: "HQ Admin",
+  BRANCH_ADMIN: "Branch Manager",
+  MEMBER: "Member",
+  STUDENT: "Student",
 };
 
 interface SidebarNavProps {

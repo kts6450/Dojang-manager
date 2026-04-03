@@ -56,10 +56,10 @@ export default function HQReportsPage() {
   const monthly = data?.monthly ?? [];
 
   const statCards = [
-    { label: "총 회원", value: totals.members.toLocaleString(), icon: Users, color: "text-indigo-600", bg: "bg-indigo-50" },
-    { label: "이번 달 출석", value: totals.attendance.toLocaleString(), icon: Activity, color: "text-sky-600", bg: "bg-sky-50" },
-    { label: "총 수강료 수입", value: `₩${totals.revenue.toLocaleString()}`, icon: DollarSign, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "미납 건수", value: totals.overdue.toLocaleString(), icon: TrendingUp, color: "text-rose-600", bg: "bg-rose-50" },
+    { label: "Total Members", value: totals.members.toLocaleString(), icon: Users, color: "text-indigo-600", bg: "bg-indigo-50" },
+    { label: "Monthly Check-ins", value: totals.attendance.toLocaleString(), icon: Activity, color: "text-sky-600", bg: "bg-sky-50" },
+    { label: "Total Revenue", value: `₩${totals.revenue.toLocaleString()}`, icon: DollarSign, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Overdue Count", value: totals.overdue.toLocaleString(), icon: TrendingUp, color: "text-rose-600", bg: "bg-rose-50" },
   ];
 
   return (
@@ -69,8 +69,8 @@ export default function HQReportsPage() {
         <div className="flex items-center gap-3">
           <Building2 className="w-6 h-6 opacity-80" />
           <div>
-            <h2 className="text-lg font-bold">본사 통합 리포트</h2>
-            <p className="text-indigo-200 text-sm mt-0.5">전 지점 데이터를 한눈에 파악하세요</p>
+            <h2 className="text-lg font-bold">Corporate Overview</h2>
+            <p className="text-indigo-200 text-sm mt-0.5">Cross-branch analytics at a glance</p>
           </div>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function HQReportsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Revenue */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">월별 수강료 수입</h3>
+          <h3 className="text-sm font-semibold text-slate-900 mb-4">Monthly Revenue</h3>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={monthly}>
               <defs>
@@ -105,7 +105,7 @@ export default function HQReportsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `₩${(v / 10000).toFixed(0)}만`} />
-              <Tooltip formatter={(v) => [`₩${Number(v).toLocaleString()}`, "수입"]} />
+              <Tooltip formatter={(v) => [`₩${Number(v).toLocaleString()}`, "Revenue"]} />
               <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2} fill="url(#revenueGrad)" />
             </AreaChart>
           </ResponsiveContainer>
@@ -113,7 +113,7 @@ export default function HQReportsPage() {
 
         {/* Branch Member Distribution */}
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">지점별 회원 현황</h3>
+          <h3 className="text-sm font-semibold text-slate-900 mb-4">Members by Branch</h3>
           {stats.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -122,12 +122,12 @@ export default function HQReportsPage() {
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v) => [Number(v), "회원"]} />
+                <Tooltip formatter={(v) => [Number(v), "Members"]} />
                 <Legend formatter={(v) => <span className="text-xs text-slate-600">{v}</span>} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm">지점 데이터가 없습니다.</div>
+            <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm">No branch data available.</div>
           )}
         </div>
       </div>
@@ -135,20 +135,20 @@ export default function HQReportsPage() {
       {/* Branch Comparison Table */}
       <div className="bg-white rounded-xl border border-slate-200">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-900">지점별 비교</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Branch Comparison</h3>
         </div>
         {stats.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-sm">등록된 지점 데이터가 없습니다.</div>
+          <div className="py-12 text-center text-slate-400 text-sm">No branch data registered.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">지점</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">회원 수</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">이달 출석</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">수강료 수입</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">미납</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Branch</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Members</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Monthly Attendance</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Revenue</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Overdue</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -180,14 +180,14 @@ export default function HQReportsPage() {
       {/* Monthly Attendance by Branch */}
       {stats.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">지점별 출석 비교</h3>
+          <h3 className="text-sm font-semibold text-slate-900 mb-4">Attendance by Branch</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={stats}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="branchName" tick={{ fontSize: 11, fill: "#94a3b8" }} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} />
               <Tooltip />
-              <Bar dataKey="attendanceCount" name="출석" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="attendanceCount" name="Attendance" radius={[4, 4, 0, 0]}>
                 {stats.map((_, i) => (
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
                 ))}
