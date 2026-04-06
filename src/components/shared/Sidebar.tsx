@@ -25,17 +25,12 @@ import {
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
+// Base nav groups — visible to all admin roles
 export const navGroups = [
   {
     label: "Home",
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: "Growth",
-    items: [
-      { href: "/crm", label: "CRM / Leads", icon: Target },
     ],
   },
   {
@@ -65,13 +60,21 @@ export const navGroups = [
   },
 ];
 
-// HQ_ADMIN only: additional nav group
-const HQ_NAV_GROUP = {
-  label: "HQ Management",
-  items: [
-    { href: "/admin/reports", label: "Corporate Overview", icon: BarChart3 },
-  ],
-};
+// HQ_ADMIN only nav groups
+const HQ_NAV_GROUPS = [
+  {
+    label: "Growth",
+    items: [
+      { href: "/crm", label: "CRM / Leads", icon: Target },
+    ],
+  },
+  {
+    label: "HQ Management",
+    items: [
+      { href: "/admin/reports", label: "Corporate Overview", icon: BarChart3 },
+    ],
+  },
+];
 
 const ROLE_LABELS: Record<string, string> = {
   HQ_ADMIN: "HQ Admin",
@@ -93,7 +96,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const userRole = session?.user?.role ?? "HQ_ADMIN";
   const userInitial = userName.charAt(0).toUpperCase();
   const isHQ = userRole === "HQ_ADMIN";
-  const allGroups = isHQ ? [...navGroups, HQ_NAV_GROUP] : navGroups;
+  const allGroups = isHQ ? [...navGroups, ...HQ_NAV_GROUPS] : navGroups;
 
   return (
     <>
