@@ -16,6 +16,13 @@ interface MemberRow { _id: string; name: string; belt: string; joinedAt: string;
 interface ChartPoint { label: string; attendance: number; revenue: number; newMembers: number; }
 interface EventRow { _id: string; title: string; date: string; type: string; }
 interface TuitionRow { _id: string; memberName: string; amount: number; status: string; dueDate: string; }
+interface ExpiringContract {
+  _id: string;
+  title: string;
+  endDate: string;
+  daysLeft: number;
+  userId: { name: string; phone?: string };
+}
 
 interface BranchData {
   kpis: {
@@ -32,6 +39,7 @@ interface BranchData {
   recentMembers: MemberRow[];
   upcomingEvents: EventRow[];
   overdueTuitions: TuitionRow[];
+  expiringContracts: ExpiringContract[];
 }
 
 const BELT_COLORS: Record<string, string> = {
@@ -56,18 +64,20 @@ export function BranchDashboard({ branchName }: { branchName?: string }) {
     async function load() {
       try {
         // Reuse existing dashboard data endpoint (session-scoped to branch)
-        const [membersRes, attendanceRes, tuitionRes, eventsRes] = await Promise.all([
+        const [membersRes, attendanceRes, tuitionRes, eventsRes, expiringRes] = await Promise.all([
           fetch("/api/members?limit=5&sort=joinedAt"),
           fetch("/api/attendance/stats"),
           fetch("/api/tuition?status=overdue&limit=5"),
           fetch("/api/events?status=upcoming&limit=4"),
+          fetch("/api/contracts/expiring?days=30"),
         ]);
 
-        const [membersData, statsData, tuitionData, eventsData] = await Promise.all([
+        const [membersData, statsData, tuitionData, eventsData, expiringData] = await Promise.all([
           membersRes.ok ? membersRes.json() : { members: [], total: 0 },
           attendanceRes.ok ? attendanceRes.json() : {},
           tuitionRes.ok ? tuitionRes.json() : { tuitions: [] },
           eventsRes.ok ? eventsRes.json() : { events: [] },
+          expiringRes.ok ? expiringRes.json() : [],
         ]);
 
         setData({
@@ -85,6 +95,7 @@ export function BranchDashboard({ branchName }: { branchName?: string }) {
           recentMembers: membersData.members ?? [],
           upcomingEvents: eventsData.events ?? [],
           overdueTuitions: tuitionData.tuitions ?? [],
+          expiringContracts: Array.isArray(expiringData) ? expiringData : [],
         });
       } finally {
         setLoading(false);
@@ -350,6 +361,38 @@ export function BranchDashboard({ branchName }: { branchName?: string }) {
           </div>
 
         </div>
+
+        {/* Expiring Contracts */}
+        {data.expiringContracts.length > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200">
+              <h3 className="text-[13px] font-semibold text-amber-800 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-500" strokeWidth={1.5} />
+                Contracts Expiring Soon ({data.expiringContracts.length})
+              </h3>
+              <Link href="/contracts" className="text-[11px] text-amber-700 hover:underline font-medium flex items-center gap-0.5">
+                View All <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="divide-y divide-amber-100">
+              {data.expiringContracts.map((c) => (
+                <div key={c._id} className="flex items-center justify-between px-4 py-2.5">
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-800">{c.userId?.name}</p>
+                    <p className="text-[11px] text-slate-500">{c.title}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-[12px] font-semibold ${c.daysLeft <= 7 ? "text-red-600" : "text-amber-700"}`}>
+                      {c.daysLeft}d left
+                    </span>
+                    <p className="text-[10px] text-slate-400">{new Date(c.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

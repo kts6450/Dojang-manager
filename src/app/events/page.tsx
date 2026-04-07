@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, CalendarDays, MapPin, Users, Trash2, Mail, Loader2 } from "lucide-react";
+import { Plus, CalendarDays, MapPin, Users, Trash2, Mail, Loader2, UserPlus, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate, formatCurrency, runAfterOverlayTransition } from "@/lib/utils";
 
@@ -43,6 +43,10 @@ const STATUS_MAP: Record<string, { label: string; className: string }> = {
 export default function EventsPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [showDialog, setShowDialog] = useState(false);
+  const [participantsDialog, setParticipantsDialog] = useState<EventItem | null>(null);
+  const [joinMemberId, setJoinMemberId] = useState("");
+  const [memberSearch, setMemberSearch] = useState<{ _id: string; name: string }[]>([]);
+  const [joiningEvent, setJoiningEvent] = useState(false);
   const [form, setForm] = useState({
     title: "", description: "", type: "other",
     date: new Date().toISOString().split("T")[0],
@@ -113,6 +117,38 @@ export default function EventsPage() {
     await fetch(`/api/events/${id}`, { method: "DELETE" });
     toast.success("Event has been deleted.");
     runAfterOverlayTransition(() => fetchEvents());
+  }
+
+  async function openParticipants(event: EventItem) {
+    setParticipantsDialog(event);
+    setJoinMemberId("");
+    const res = await fetch("/api/members?limit=200");
+    const data = await res.json();
+    setMemberSearch(data.members ?? []);
+  }
+
+  async function handleJoin(eventId: string, userId: string, action: "join" | "leave") {
+    setJoiningEvent(true);
+    const res = await fetch(`/api/events/${eventId}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, action }),
+    });
+    setJoiningEvent(false);
+    const data = await res.json();
+    if (res.ok) {
+      toast.success(data.message);
+      // Refresh events & dialog
+      const updated = await fetch("/api/events").then((r) => r.json());
+      const updatedList: EventItem[] = Array.isArray(updated) ? updated : [];
+      setEvents(updatedList);
+      if (participantsDialog) {
+        const found = updatedList.find((e) => e._id === eventId);
+        if (found) setParticipantsDialog(found);
+      }
+    } else {
+      toast.error(data.error ?? "Error");
+    }
   }
 
   return (
@@ -205,6 +241,15 @@ export default function EventsPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          className="h-6 px-1.5 text-[11px] text-blue-600 hover:bg-blue-50"
+                          onClick={() => openParticipants(event)}
+                          title="Manage participants"
+                        >
+                          <UserPlus className="w-3 h-3" strokeWidth={1.5} />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           className="h-6 px-1.5 text-[11px]"
                           onClick={() => handleSendEventEmail(event._id)}
                           disabled={sendingEmail === event._id}
@@ -287,6 +332,67 @@ export default function EventsPage() {
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setShowDialog(false)}>Cancel</Button>
             <Button size="sm" onClick={handleSubmit}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Participants Management Dialog */}
+      <Dialog open={!!participantsDialog} onOpenChange={(o) => !o && setParticipantsDialog(null)}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[13px] font-semibold">
+              Participants — {participantsDialog?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {participantsDialog && (
+            <div className="space-y-4 py-1">
+              <div className="flex items-center justify-between text-[12px] text-slate-500">
+                <span>{participantsDialog.participants?.length ?? 0} registered</span>
+                {participantsDialog.maxParticipants && (
+                  <span className="text-slate-400">Max: {participantsDialog.maxParticipants}</span>
+                )}
+              </div>
+
+              {/* Add participant */}
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-slate-500">Add Member</Label>
+                <div className="flex gap-2">
+                  <Select value={joinMemberId} onValueChange={setJoinMemberId}>
+                    <SelectTrigger className="h-8 text-[13px] flex-1"><SelectValue placeholder="Select member..." /></SelectTrigger>
+                    <SelectContent>
+                      {memberSearch
+                        .filter((m) => !participantsDialog.participants?.some((p) => p._id === m._id))
+                        .map((m) => <SelectItem key={m._id} value={m._id}>{m.name}</SelectItem>)
+                      }
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" className="h-8 px-3" disabled={!joinMemberId || joiningEvent}
+                    onClick={() => { if (joinMemberId) { handleJoin(participantsDialog._id, joinMemberId, "join"); setJoinMemberId(""); } }}>
+                    <UserPlus className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Participant list */}
+              <div className="divide-y border rounded-lg overflow-hidden">
+                {(participantsDialog.participants?.length ?? 0) === 0 ? (
+                  <p className="text-center py-6 text-[13px] text-slate-400">No participants yet.</p>
+                ) : (
+                  participantsDialog.participants.map((p) => (
+                    <div key={p._id} className="flex items-center justify-between px-3 py-2 hover:bg-slate-50">
+                      <span className="text-[13px] text-slate-700">{p.name}</span>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-300 hover:text-red-500"
+                        onClick={() => handleJoin(participantsDialog._id, p._id, "leave")}
+                        disabled={joiningEvent}>
+                        <UserMinus className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setParticipantsDialog(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

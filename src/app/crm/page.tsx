@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Trash2, Pencil, PhoneCall, Users, TrendingUp, UserCheck, UserX } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, PhoneCall, Users, TrendingUp, UserCheck, UserX, ArrowRightCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatDate, runAfterOverlayTransition } from "@/lib/utils";
 
@@ -130,6 +130,21 @@ export default function CRMPage() {
     runAfterOverlayTransition(() => fetchLeads());
   }
 
+  async function handleConvert(lead: Lead) {
+    if (!confirm(`Convert "${lead.name}" to a member? A new member account will be created.`)) return;
+    const res = await fetch(`/api/leads/${lead._id}/convert`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      toast.success(
+        `${data.memberName} has been converted! Temp password: ${data.tempPassword}`,
+        { duration: 8000 }
+      );
+      runAfterOverlayTransition(() => fetchLeads());
+    } else {
+      toast.error(data.error ?? "Conversion failed.");
+    }
+  }
+
   const totalLeads = Object.values(stats).reduce((a, b) => a + b, 0);
   const conversionRate = totalLeads > 0
     ? Math.round(((stats.converted ?? 0) / totalLeads) * 100)
@@ -224,7 +239,16 @@ export default function CRMPage() {
                                 {SOURCE_CONFIG[lead.source]?.label}
                               </span>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {col !== "converted" && (
+                                {col === "trial" && (
+                                  <button
+                                    className="text-[11px] text-blue-600 border border-blue-200 bg-blue-50 px-1.5 py-0.5 rounded-md font-medium hover:bg-blue-100"
+                                    onClick={(e) => { e.stopPropagation(); handleConvert(lead); }}
+                                    title="Convert to Member"
+                                  >
+                                    Convert
+                                  </button>
+                                )}
+                                {col !== "converted" && col !== "trial" && (
                                   <button
                                     className="text-[11px] text-emerald-600 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 rounded-md font-medium hover:bg-emerald-100"
                                     onClick={(e) => { e.stopPropagation(); handleStatusChange(lead._id, KANBAN_COLUMNS[KANBAN_COLUMNS.indexOf(col) + 1] ?? "converted"); }}
@@ -292,6 +316,11 @@ export default function CRMPage() {
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {lead.status !== "converted" && lead.status !== "lost" && (
+                                  <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-blue-600 hover:bg-blue-50" onClick={() => handleConvert(lead)} title="Convert to Member">
+                                    <ArrowRightCircle className="w-3.5 h-3.5 mr-1" strokeWidth={1.5} />Convert
+                                  </Button>
+                                )}
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600" onClick={() => openEdit(lead)}>
                                   <Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />
                                 </Button>

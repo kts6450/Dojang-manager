@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Shield,
   Target,
+  UserCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -169,6 +170,17 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
           )}
         </div>
 
+        <Link
+          href="/profile"
+          className={cn(
+            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all duration-100",
+            collapsed ? "justify-center" : ""
+          )}
+          title={collapsed ? "My Profile" : undefined}
+        >
+          <UserCircle className="w-[17px] h-[17px] shrink-0" strokeWidth={1.5} />
+          {!collapsed && <span>My Profile</span>}
+        </Link>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className={cn(

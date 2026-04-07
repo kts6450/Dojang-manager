@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, SlidersHorizontal, QrCode } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, SlidersHorizontal, QrCode, Eye } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { cn, formatDate, runAfterOverlayTransition } from "@/lib/utils";
 import { MemberQRCode } from "@/components/shared/MemberQRCode";
@@ -329,6 +330,11 @@ export default function MembersPage() {
                         </TableCell>
                         <TableCell className="pr-4 text-right py-2">
                           <div className="flex justify-end gap-0.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                            <Link href={`/members/${m._id}`}>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-emerald-600" title="View Detail">
+                                <Eye className="w-3.5 h-3.5" strokeWidth={1.5} />
+                              </Button>
+                            </Link>
                             <Button
                               size="sm"
                               variant="ghost"
