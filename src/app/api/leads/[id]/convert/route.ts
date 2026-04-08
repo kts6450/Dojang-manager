@@ -30,13 +30,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
     // Create member
-    const member = await User.create({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const member: any = await User.create({
       name: lead.name,
       email: lead.email ?? `${lead.name.replace(/\s/g, "").toLowerCase()}_${Date.now()}@dojang.local`,
       password: hashedPassword,
       phone: lead.phone,
       role: "MEMBER",
-      branchId: lead.branchId ?? session.user.branchId ?? null,
+      branchId: lead.branchId ?? session.user.branchId ?? undefined,
       status: "active",
       belt: "white",
       beltLevel: 1,

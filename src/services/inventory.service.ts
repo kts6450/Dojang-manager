@@ -73,6 +73,41 @@ export async function deleteItem(id: string) {
   return { message: "Deleted." };
 }
 
+export async function listItemLogs(
+  itemId: string,
+  opts?: { limit?: number; skip?: number },
+) {
+  await connectDB();
+
+  const item = await InventoryItem.findById(itemId).lean();
+  if (!item) {
+    throw Object.assign(new Error("Item not found."), { statusCode: 404 });
+  }
+
+  const rawLimit = opts?.limit;
+  const limit =
+    rawLimit !== undefined && Number.isFinite(rawLimit) ? Math.min(Math.max(Number(rawLimit), 1), 200) : 50;
+  const rawSkip = opts?.skip;
+  const skip = rawSkip !== undefined && Number.isFinite(rawSkip) ? Math.max(Number(rawSkip), 0) : 0;
+
+  const [logs, total] = await Promise.all([
+    InventoryLog.find({ itemId })
+      .sort({ date: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    InventoryLog.countDocuments({ itemId }),
+  ]);
+
+  return {
+    item: { _id: item._id, name: item.name, sku: item.sku },
+    logs,
+    total,
+    limit,
+    skip,
+  };
+}
+
 export async function adjustQuantity(id: string, adjustment: number, reason?: string) {
   await connectDB();
 

@@ -16,6 +16,19 @@ function isEmailConfigured() {
   return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+/** SMTP 서버 연결만 검증 (메일 발송 없음). 설정이 없으면 실패 반환. */
+export async function verifySmtpConnection(): Promise<{ ok: boolean; error?: string }> {
+  if (!isEmailConfigured()) {
+    return { ok: false, error: "SMTP credentials not configured (SMTP_USER / SMTP_PASS)." };
+  }
+  try {
+    await transporter.verify();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
 export interface EmailPayload {
   to: string;
   subject: string;

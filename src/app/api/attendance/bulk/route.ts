@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
 
-    const branchId = session.user.branchId ?? null;
+    const branchId = session.user.branchId ?? undefined;
 
     const ops = records.map(({ userId, status }: { userId: string; status: string }) => ({
       updateOne: {
@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
       },
     }));
 
-    const result = await Attendance.bulkWrite(ops);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await Attendance.bulkWrite(ops as any);
 
     return NextResponse.json({
       message: "Bulk attendance saved",

@@ -60,7 +60,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       .map(([month, count]) => ({ month, count }));
 
     // Tuition summary
-    const unpaidTuition = tuitionRecords.filter((t) => t.status === "unpaid" || t.status === "overdue");
+    const unpaidTuition = tuitionRecords.filter((t) => t.status === "pending" || t.status === "overdue");
     const totalUnpaid = unpaidTuition.reduce((sum, t) => sum + (t.amount ?? 0), 0);
 
     // Active contract
